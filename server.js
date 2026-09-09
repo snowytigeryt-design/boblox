@@ -11,6 +11,11 @@ const httpServer = http.createServer(app);
 const io = new Server(httpServer, { cors: { origin: '*' } });
 const PORT = process.env.PORT || 3000;
 
+// Arena Clash (original fictional competitive arena shooter) - attached below,
+// after `db` exists, on its own Socket.IO namespace ("/arena"). It does not
+// touch any existing routes, tables, or the Tower Defense Simulator game.
+const attachArenaClash = require('./arena-server/arenaServer');
+
 // username -> socket.id, for real-time delivery of friend events
 const onlineUsers = new Map();
 
@@ -33,6 +38,9 @@ const db = new sqlite3.Database(path.join(dbDir, 'boblox.db'), (err) => {
 
 // Enable foreign keys
 db.run('PRAGMA foreign_keys = ON');
+
+// Attach Arena Clash's own namespace/socket handlers (queueing, matches, rounds).
+attachArenaClash(io, db);
 
 // Create database schema
 db.serialize(() => {
@@ -1650,6 +1658,30 @@ httpServer.listen(PORT, () => {
                     console.error('Error registering game:', err);
                 } else {
                     console.log('Registered Tower Defense Simulator game');
+                }
+            });
+        }
+    });
+
+    // Register Arena Clash if not already registered
+    db.get('SELECT * FROM games WHERE id = ?', ['arena-clash'], (err, existingGame) => {
+        if (!existingGame) {
+            db.run(`
+                INSERT INTO games (id, name, description, thumbnail_url, folder_path, category, is_active)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            `, [
+                'arena-clash',
+                'Arena Clash',
+                'Fast-paced first-person arena duels. Queue 1v1 or 2v2 and race to five round wins.',
+                null,
+                'games/arena-clash',
+                'action',
+                1
+            ], (err) => {
+                if (err) {
+                    console.error('Error registering game:', err);
+                } else {
+                    console.log('Registered Arena Clash game');
                 }
             });
         }

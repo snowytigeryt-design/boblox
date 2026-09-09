@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arena Clash</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="canvas-wrap"></div>
+
+<!-- MAIN MENU -->
+<div id="screen-menu" class="screen active">
+  <div class="menu-panel">
+    <h1 class="game-logo">ARENA CLASH</h1>
+    <p class="tagline">Fast rounds. Compact arenas. First to five.</p>
+    <button id="btn-play" class="btn-primary big">PLAY</button>
+    <a href="/" class="btn-secondary">Back to Boblox Hub</a>
+  </div>
+</div>
+
+<!-- MODE SELECT -->
+<div id="screen-mode" class="screen">
+  <div class="menu-panel">
+    <h2>Select Mode</h2>
+    <div class="mode-grid">
+      <button class="mode-btn" data-mode="1v1">
+        <span class="mode-title">1v1</span>
+        <span class="mode-sub">Duel</span>
+      </button>
+      <button class="mode-btn" data-mode="2v2">
+        <span class="mode-title">2v2</span>
+        <span class="mode-sub">Team Duel</span>
+      </button>
+    </div>
+    <button id="btn-mode-back" class="btn-secondary">Back</button>
+  </div>
+</div>
+
+<!-- QUEUE -->
+<div id="screen-queue" class="screen">
+  <div class="menu-panel">
+    <h2>Searching for match<span id="queue-dots">...</span></h2>
+    <p id="queue-mode-label" class="tagline"></p>
+    <div class="spinner"></div>
+    <p id="queue-timer" class="queue-timer">0:00</p>
+    <button id="btn-queue-cancel" class="btn-secondary">Cancel</button>
+  </div>
+</div>
+
+<!-- LOADING -->
+<div id="screen-loading" class="screen">
+  <div class="menu-panel">
+    <h2>NEON DISTRICT</h2>
+    <p class="tagline" id="loading-tip">Tip: Slide into cover to break line of sight.</p>
+    <div class="loading-bar"><div id="loading-fill"></div></div>
+  </div>
+</div>
+
+<!-- POINTER LOCK PROMPT -->
+<div id="screen-clicktoplay" class="screen">
+  <div class="menu-panel">
+    <h2>Click to enter the arena</h2>
+    <p class="tagline">Mouse to look &middot; WASD to move &middot; Shift sprint &middot; Ctrl slide &middot; Space jump</p>
+    <p class="tagline">Left click: Pulse Blaster &middot; F: Energy Blade &middot; Tab: Scoreboard</p>
+  </div>
+</div>
+
+<!-- HUD (shown during match) -->
+<div id="hud">
+  <div id="crosshair"><span></span><span></span><span></span><span></span></div>
+
+  <div id="hud-top">
+    <div class="hud-score">
+      <span id="score-a">0</span><span class="score-sep">—</span><span id="score-b">0</span>
+    </div>
+    <div id="hud-round">ROUND 1</div>
+  </div>
+
+  <div id="hud-bottom-left">
+    <div class="healthbar-wrap">
+      <div id="healthbar-fill"></div>
+    </div>
+    <div id="health-num">100</div>
+  </div>
+
+  <div id="hud-bottom-right">
+    <div class="weapon-name">PULSE BLASTER</div>
+    <div class="cooldown-wrap"><div id="cooldown-fill"></div></div>
+  </div>
+
+  <div id="hit-marker"></div>
+  <div id="damage-vignette"></div>
+
+  <div id="banner-center"></div>
+  <div id="eliminated-banner">ELIMINATED — SPECTATING</div>
+
+  <div id="scoreboard">
+    <div class="sb-col" id="sb-team-a"><h3>TEAM A</h3></div>
+    <div class="sb-col" id="sb-team-b"><h3>TEAM B</h3></div>
+  </div>
+</div>
+
+<!-- MATCH END -->
+<div id="screen-matchend" class="screen">
+  <div class="menu-panel">
+    <h1 id="matchend-title">VICTORY</h1>
+    <p id="matchend-score" class="tagline"></p>
+    <p id="matchend-mvp" class="tagline"></p>
+    <button id="btn-play-again" class="btn-primary big">PLAY AGAIN</button>
+    <a href="/" class="btn-secondary">Return to Lobby</a>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<script src="client.js"></script>
+</body>
+</html>

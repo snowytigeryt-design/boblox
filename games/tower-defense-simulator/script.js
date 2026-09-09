@@ -2394,7 +2394,7 @@ function initThreeScene() {
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.outputEncoding = THREE.sRGBEncoding;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.15;
+    renderer.toneMappingExposure = 0.85;
     container.appendChild(renderer.domElement);
 
     const hemi = new THREE.HemisphereLight(0xffffff, 0x33361f, 0.7);
