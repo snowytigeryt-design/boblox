@@ -1,0 +1,19 @@
+{
+  "name": "boblox-hub",
+  "version": "1.0.0",
+  "description": "Centralized gaming hub with shared accounts and friend system",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "sqlite3": "^5.1.7",
+    "bcryptjs": "^2.4.3",
+    "socket.io": "^4.7.5"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

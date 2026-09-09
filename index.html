@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Boblox - Gaming Hub</title>
+    <link rel="stylesheet" href="hub.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Login Screen -->
+        <div id="login-screen" class="screen">
+            <div class="auth-container">
+                <h1 class="logo">BOBLOX</h1>
+                <h2>Login</h2>
+                <form id="login-form">
+                    <input type="text" id="login-username" placeholder="Username" required>
+                    <input type="password" id="login-password" placeholder="Password" required>
+                    <button type="submit" class="primary-btn">Login</button>
+                </form>
+                <p>Don't have an account? <button id="btn-show-register" class="link-btn">Register</button></p>
+                <p id="login-error" class="error-text"></p>
+            </div>
+        </div>
+
+        <!-- Register Screen -->
+        <div id="register-screen" class="screen">
+            <div class="auth-container">
+                <h1 class="logo">BOBLOX</h1>
+                <h2>Register</h2>
+                <form id="register-form">
+                    <input type="text" id="register-username" placeholder="Username" required>
+                    <input type="email" id="register-email" placeholder="Email" required>
+                    <input type="password" id="register-password" placeholder="Password (min 6 characters)" required>
+                    <button type="submit" class="primary-btn">Register</button>
+                </form>
+                <p>Already have an account? <button id="btn-show-login" class="link-btn">Login</button></p>
+                <p id="register-error" class="error-text"></p>
+            </div>
+        </div>
+
+        <!-- Main Hub -->
+        <div id="hub-screen" class="screen">
+            <nav class="navbar">
+                <div class="logo">BOBLOX</div>
+                <div class="nav-items">
+                    <span id="nav-username">Player</span>
+                    <button id="btn-profile-nav" class="nav-btn">Profile</button>
+                    <button id="btn-discovery-nav" class="nav-btn">Discover</button>
+                    <button id="btn-chat-nav" class="nav-btn">Chat</button>
+                    <button id="btn-friends-nav" class="nav-btn">Friends</button>
+                    <button id="btn-groups-nav" class="nav-btn">Groups</button>
+                    <button id="btn-logout" class="nav-btn">Logout</button>
+                </div>
+            </nav>
+
+            <main class="hub-content">
+                <section class="hero">
+                    <h1>Welcome to Boblox</h1>
+                    <p>Your centralized gaming hub. Play games with friends, track progress, and more!</p>
+                </section>
+
+                <section class="games-section">
+                    <h2>Available Games</h2>
+                    <div id="games-grid" class="games-grid">
+                        <!-- Games will be loaded here -->
+                    </div>
+                </section>
+            </main>
+        </div>
+
+        <!-- Profile Screen -->
+        <div id="profile-screen" class="screen">
+            <nav class="navbar">
+                <div class="logo">BOBLOX</div>
+                <div class="nav-items">
+                    <span id="profile-nav-username">Player</span>
+                    <button id="btn-profile-back" class="nav-btn">Back to Hub</button>
+                    <button id="btn-logout-profile" class="nav-btn">Logout</button>
+                </div>
+            </nav>
+
+            <main class="profile-content">
+                <div class="profile-header">
+                    <div class="avatar-section">
+                        <img id="profile-avatar" src="" alt="Avatar" class="avatar-large">
+                        <input type="text" id="avatar-url-input" placeholder="Avatar URL" class="input-field">
+                    </div>
+                    <div class="profile-info">
+                        <h1 id="profile-username">Username</h1>
+                        <p id="profile-bio" class="bio">No bio yet</p>
+                        <textarea id="bio-input" placeholder="Write your bio..." class="textarea-field"></textarea>
+                    </div>
+                </div>
+
+                <div class="profile-section">
+                    <h2>Privacy Settings</h2>
+                    <div class="privacy-settings">
+                        <label>
+                            <input type="checkbox" id="privacy-friend-requests">
+                            Allow friend requests
+                        </label>
+                        <label>
+                            <input type="checkbox" id="privacy-profile-view">
+                            Allow profile view
+                        </label>
+                        <label>
+                            <input type="checkbox" id="privacy-game-invites">
+                            Allow game invites
+                        </label>
+                    </div>
+                    <button id="btn-save-profile" class="primary-btn">Save Profile</button>
+                </div>
+
+                <div class="profile-section">
+                    <h2>Achievements</h2>
+                    <div id="achievements-grid" class="achievements-grid"></div>
+                </div>
+            </main>
+        </div>
+
+        <!-- Game Discovery Screen -->
+        <div id="discovery-screen" class="screen">
+            <nav class="navbar">
+                <div class="logo">BOBLOX</div>
+                <div class="nav-items">
+                    <span id="discovery-nav-username">Player</span>
+                    <button id="btn-discovery-back" class="nav-btn">Back to Hub</button>
+                    <button id="btn-logout-discovery" class="nav-btn">Logout</button>
+                </div>
+            </nav>
+
+            <main class="discovery-content">
+                <section class="search-section">
+                    <input type="text" id="search-input" placeholder="Search games..." class="search-input">
+                    <select id="category-filter" class="filter-select">
+                        <option value="">All Categories</option>
+                        <option value="action">Action</option>
+                        <option value="strategy">Strategy</option>
+                        <option value="casual">Casual</option>
+                        <option value="adventure">Adventure</option>
+                    </select>
+                    <select id="sort-filter" class="filter-select">
+                        <option value="plays">Most Popular</option>
+                        <option value="rating">Highest Rated</option>
+                        <option value="newest">Newest</option>
+                    </select>
+                    <button id="btn-search" class="primary-btn">Search</button>
+                </section>
+
+                <section class="games-section">
+                    <h2>Search Results</h2>
+                    <div id="discovery-grid" class="games-grid"></div>
+                </section>
+            </main>
+        </div>
+
+        <!-- Chat Screen -->
+        <div id="chat-screen" class="screen">
+            <nav class="navbar">
+                <div class="logo">BOBLOX</div>
+                <div class="nav-items">
+                    <span id="chat-nav-username">Player</span>
+                    <button id="btn-chat-back" class="nav-btn">Back to Hub</button>
+                    <button id="btn-logout-chat" class="nav-btn">Logout</button>
+                </div>
+            </nav>
+
+            <main class="chat-content">
+                <div class="chat-sidebar">
+                    <h3>Conversations</h3>
+                    <div id="conversations-list" class="conversations-list"></div>
+                    <button id="btn-new-chat" class="primary-btn">New Message</button>
+                </div>
+
+                <div class="chat-main">
+                    <div class="chat-header">
+                        <h3 id="chat-recipient">Select a conversation</h3>
+                    </div>
+                    <div id="chat-messages" class="chat-messages"></div>
+                    <div class="chat-input-area">
+                        <input type="text" id="chat-input" placeholder="Type a message..." class="chat-input">
+                        <button id="btn-send-message" class="primary-btn">Send</button>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- Groups Screen -->
+        <div id="groups-screen" class="screen">
+            <nav class="navbar">
+                <div class="logo">BOBLOX</div>
+                <div class="nav-items">
+                    <span id="groups-nav-username">Player</span>
+                    <button id="btn-groups-back" class="nav-btn">Back to Hub</button>
+                    <button id="btn-logout-groups" class="nav-btn">Logout</button>
+                </div>
+            </nav>
+
+            <main class="groups-content">
+                <section class="groups-section">
+                    <h2>Your Groups</h2>
+                    <div id="user-groups-list" class="groups-list"></div>
+                    <button id="btn-create-group" class="primary-btn">Create Group</button>
+                </section>
+
+                <section class="groups-section">
+                    <h2>Discover Groups</h2>
+                    <div id="all-groups-list" class="groups-list"></div>
+                </section>
+            </main>
+        </div>
+
+        <!-- Create Group Modal -->
+        <div id="create-group-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Create Group</h2>
+                    <button id="btn-close-create-group" class="close-btn">&times;</button>
+                </div>
+                <form id="create-group-form">
+                    <input type="text" id="group-name" placeholder="Group Name" required>
+                    <textarea id="group-description" placeholder="Description"></textarea>
+                    <button type="submit" class="primary-btn">Create</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Friends Modal -->
+        <div id="friends-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Friends</h2>
+                    <button id="btn-close-friends" class="close-btn">&times;</button>
+                </div>
+                
+                <div class="friends-section">
+                    <h3>Add a Friend</h3>
+                    <div class="add-friend-form">
+                        <input type="text" id="add-friend-input" placeholder="Username">
+                        <button id="btn-add-friend" class="primary-btn">Add</button>
+                    </div>
+                    <p id="friend-error" class="error-text"></p>
+                </div>
+
+                <div class="friends-section">
+                    <h3>Pending Requests</h3>
+                    <div id="friend-requests-list" class="friends-list"></div>
+                </div>
+
+                <div class="friends-section">
+                    <h3>Sent Requests</h3>
+                    <div id="friend-outgoing-list" class="friends-list"></div>
+                </div>
+
+                <div class="friends-section">
+                    <h3>Your Friends</h3>
+                    <div id="friends-list" class="friends-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="hub.js"></script>
+</body>
+</html>
