@@ -271,14 +271,31 @@
   window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
   let pointerLocked = false;
-  renderer.domElement.addEventListener('click', () => {
+
+  function requestLockIfInMatch() {
     if (matchState === 'ROUND_ACTIVE' || matchState === 'PRE_MATCH') {
       renderer.domElement.requestPointerLock();
     }
-  });
+  }
+  // The click-to-play overlay sits ON TOP of the canvas (that's the whole point -
+  // it needs to be visible), which means it also has to be the thing that
+  // requests pointer lock. Binding the listener only to the canvas meant every
+  // click was swallowed by the overlay and pointer lock could never engage.
+  renderer.domElement.addEventListener('click', requestLockIfInMatch);
+  screens.clicktoplay.addEventListener('click', requestLockIfInMatch);
+
+  // Single source of truth for whether the "click to enter" prompt should be
+  // showing, called after every event that could change it. Never force-set
+  // the overlay directly anywhere else - this avoids it getting stuck on
+  // (or stuck off) out of sync with the real lock state.
+  function syncClickPrompt() {
+    const shouldShow = inMatch() && !pointerLocked && matchState !== 'MATCH_END';
+    screens.clicktoplay.classList.toggle('active', shouldShow);
+  }
+
   document.addEventListener('pointerlockchange', () => {
     pointerLocked = document.pointerLockElement === renderer.domElement;
-    screens.clicktoplay.classList.toggle('active', !pointerLocked && inMatch());
+    syncClickPrompt();
   });
   document.addEventListener('mousemove', (e) => {
     if (!pointerLocked) return;
@@ -642,6 +659,7 @@
       player.alive = false;
       showEliminatedBanner();
       if (document.pointerLockElement) document.exitPointerLock();
+      syncClickPrompt(); // exitPointerLock is async in some browsers - don't wait on its event alone
     } else {
       const av = remotePlayers.get(data.key);
       if (av) { av.alive = false; av.group.visible = false; }
@@ -656,11 +674,9 @@
     if (data.state === 'PRE_MATCH') {
       setHudActive(true);
       showScreen(null);
-      screens.clicktoplay.classList.add('active');
       runCountdown(data.countdown || 3);
-    } else if (data.state === 'ROUND_ACTIVE') {
-      // countdown handles hiding the click-to-play prompt once locked
     }
+    syncClickPrompt();
   });
 
   function runCountdown(seconds) {

@@ -1,7 +1,7 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const sqlite3 = require('sqlite3').verbose();
+const createDb = require('./db-adapter');
 const bcrypt = require('bcryptjs');
 const path = require('path');
 const fs = require('fs');
@@ -23,18 +23,10 @@ const onlineUsers = new Map();
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 
-// Initialize SQLite database
-const dbDir = process.env.RENDER ? '/opt/render/project/data' : path.join(__dirname, 'data');
-if (!fs.existsSync(dbDir)) {
-    fs.mkdirSync(dbDir, { recursive: true });
-}
-const db = new sqlite3.Database(path.join(dbDir, 'boblox.db'), (err) => {
-    if (err) {
-        console.error('Database connection error:', err);
-    } else {
-        console.log('Connected to SQLite database');
-    }
-});
+// Initialize database (Turso when TURSO_DATABASE_URL is set, else a local
+// SQLite file for local development - see db-adapter.js for details).
+const dbDir = path.join(__dirname, 'data');
+const db = createDb(dbDir);
 
 // Enable foreign keys
 db.run('PRAGMA foreign_keys = ON');
