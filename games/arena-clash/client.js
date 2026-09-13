@@ -1,16 +1,23 @@
 // ============================================================================
 // ARENA CLASH - client
-// Handles: rendering (three.js), local first-person movement/camera/weapon,
+// Handles: rendering (three.js), local first-person movement/camera/weapons,
 // remote player interpolation, UI/screen flow, and networking to the
 // "/arena" Socket.IO namespace on the Boblox hub server.
+//
+// LOADOUT: 5 slots, selected with number keys 1-5, used with left click:
+//   1 Impulse Rifle (primary)   2 Impulse Sidearm (secondary)
+//   3 Fist (melee)              4 Kinetic Boost (movement utility)
+//   5 Frag Charge (grenade)
 //
 // NOTE ON AUTHORITY: this client SIMULATES its own movement locally for
 // responsiveness and reports its transform to the server (~15Hz). The
 // server sanity-checks reported speed but does not fully re-simulate
 // physics yet (see server-side arenaServer.js header comment + chat
-// writeup "known limitations"). Health, damage, elimination, and round/
-// match outcomes are decided entirely by the server - this client never
-// sets its own health or declares its own kills.
+// writeup "known limitations"). Health, damage, elimination, wall/cover
+// occlusion, and round/match outcomes are decided entirely by the server -
+// this client never sets its own health or declares its own kills. The
+// Kinetic Boost is the one exception: it's a pure movement ability with no
+// combat effect, so it's applied locally with no server round-trip.
 // ============================================================================
 
 (function () {
@@ -47,12 +54,19 @@
     bobFrequency: 10
   };
 
+  // slot -> weapon id, matches the server's EquipmentDatabase ids exactly
+  // (except kinetic_boost, which is client-only - see header note).
+  const SLOT_ORDER = ['impulse_rifle', 'impulse_pistol', 'fist', 'kinetic_boost', 'frag_charge'];
+
   const WeaponDatabase = {
-    pulse_blaster: { id: 'pulse_blaster', name: 'PULSE BLASTER', cooldown: 0.28, color: 0x37e6ff },
-    energy_blade: { id: 'energy_blade', name: 'ENERGY BLADE', cooldown: 0.6, color: 0xff2e9f }
+    impulse_rifle: { id: 'impulse_rifle', name: 'RIFLE', short: '1', kind: 'gun', cooldown: 0.11, range: 85, color: 0x9fd0ff },
+    impulse_pistol: { id: 'impulse_pistol', name: 'SIDEARM', short: '2', kind: 'gun', cooldown: 0.22, range: 60, color: 0x9fd0ff },
+    fist: { id: 'fist', name: 'FIST', short: '3', kind: 'melee', cooldown: 0.55, range: 3.2, color: 0xffd27a },
+    kinetic_boost: { id: 'kinetic_boost', name: 'BOOST', short: '4', kind: 'boost', cooldown: 8, color: 0x7dffb0 },
+    frag_charge: { id: 'frag_charge', name: 'GRENADE', short: '5', kind: 'grenade', cooldown: 5, range: 22, color: 0xff8a4a }
   };
 
-  const TEAM_COLOR = { A: 0x37e6ff, B: 0xff2e6f };
+  const TEAM_COLOR = { A: 0x5a9bd6, B: 0xd97a3f };
 
   // ---------------------------------------------------------------------
   // UI / screen management
@@ -75,7 +89,7 @@
   if (!token) {
     document.body.innerHTML = '<div style="padding:60px;text-align:center;font-family:sans-serif;color:#fff;background:#05060a;height:100vh;">' +
       '<h2>Please launch Arena Clash from the Boblox hub.</h2>' +
-      '<a href="/" style="color:#37e6ff;">Return to hub</a></div>';
+      '<a href="/" style="color:#5a9bd6;">Return to hub</a></div>';
     throw new Error('No session token found');
   }
   const socket = io('/arena', { auth: { token } });
@@ -116,14 +130,15 @@
   }, 400);
 
   // ---------------------------------------------------------------------
-  // three.js scene setup
+  // three.js scene setup - grounded/tactical look: muted concrete-and-steel
+  // palette, clear sightlines, minimal clutter, sunlit rather than neon.
   // ---------------------------------------------------------------------
   const wrap = document.getElementById('canvas-wrap');
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0a0d16);
-  scene.fog = new THREE.Fog(0x0a0d16, 22, 70);
+  scene.background = new THREE.Color(0x1b1e22);
+  scene.fog = new THREE.Fog(0x1b1e22, 35, 130);
 
-  const camera = new THREE.PerspectiveCamera(CameraConfig.baseFov, window.innerWidth / window.innerHeight, 0.1, 300);
+  const camera = new THREE.PerspectiveCamera(CameraConfig.baseFov, window.innerWidth / window.innerHeight, 0.1, 400);
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -135,80 +150,98 @@
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
 
-  scene.add(new THREE.AmbientLight(0x8899ff, 0.55));
-  const hemi = new THREE.HemisphereLight(0x88bbff, 0x201028, 0.6);
-  scene.add(hemi);
-  const key1 = new THREE.PointLight(0x37e6ff, 1.4, 40);
-  key1.position.set(-14, 8, -14);
-  scene.add(key1);
-  const key2 = new THREE.PointLight(0xff2e9f, 1.4, 40);
-  key2.position.set(14, 8, 14);
-  scene.add(key2);
+  scene.add(new THREE.AmbientLight(0xaab0bb, 0.55));
+  scene.add(new THREE.HemisphereLight(0x9fb4c9, 0x2a2620, 0.55));
+  const sun = new THREE.DirectionalLight(0xfff2da, 0.85);
+  sun.position.set(30, 60, -20);
+  scene.add(sun);
+  // faint team-tinted wayfinding lights at each spawn only - not blanket neon
+  const spawnLightA = new THREE.PointLight(TEAM_COLOR.A, 0.9, 30);
+  spawnLightA.position.set(-40, 6, -40);
+  scene.add(spawnLightA);
+  const spawnLightB = new THREE.PointLight(TEAM_COLOR.B, 0.9, 30);
+  spawnLightB.position.set(40, 6, 40);
+  scene.add(spawnLightB);
 
   // ---- collision colliders (simple AABBs) ----
-  const colliders = []; // { minX,maxX,minY,maxY,minZ,maxZ, wall:boolean }
+  const colliders = []; // { minX,maxX,minY,maxY,minZ,maxZ, wall:boolean, top? }
 
   function addBox(x, y, z, w, h, d, color, opts) {
     opts = opts || {};
     const geo = new THREE.BoxGeometry(w, h, d);
     const mat = new THREE.MeshStandardMaterial({
       color, emissive: opts.emissive || 0x000000, emissiveIntensity: opts.emissiveIntensity || 0,
-      roughness: 0.7, metalness: 0.15
+      roughness: opts.roughness !== undefined ? opts.roughness : 0.85,
+      metalness: opts.metalness !== undefined ? opts.metalness : 0.1
     });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(x, y + h / 2, z);
     scene.add(mesh);
-    colliders.push({
+    const collider = {
       minX: x - w / 2, maxX: x + w / 2,
       minY: y, maxY: y + h,
       minZ: z - d / 2, maxZ: z + d / 2,
       wall: opts.wall !== false
-    });
+    };
+    if (opts.top !== undefined) collider.top = opts.top;
+    colliders.push(collider);
     return mesh;
   }
 
+  // Map layout mirrors ARENA_WALLS in arena-server/arenaServer.js (kept in
+  // sync by hand - see that file's header note). Bigger than the original
+  // arena: a 100x100 "Outpost" with two sheltered corner spawns, a
+  // two-level mid tower fight for high ground, flank cover routes, and
+  // scattered crates so there's always somewhere to break line of sight.
   function buildArena() {
+    const STEEL = 0x3c4047;
+    const STEEL_DARK = 0x2b2e33;
+    const CRATE = 0x6b6248;
+
     // ground
-    const groundGeo = new THREE.PlaneGeometry(60, 60);
-    const groundMat = new THREE.MeshStandardMaterial({ color: 0x1b1e2a, roughness: 0.95 });
+    const groundGeo = new THREE.PlaneGeometry(100, 100);
+    const groundMat = new THREE.MeshStandardMaterial({ color: 0x24272c, roughness: 0.95 });
     const ground = new THREE.Mesh(groundGeo, groundMat);
     ground.rotation.x = -Math.PI / 2;
     scene.add(ground);
-    colliders.push({ minX: -30, maxX: 30, minY: -1, maxY: 0, minZ: -30, maxZ: 30, wall: false, floor: true, top: 0 });
+    colliders.push({ minX: -50, maxX: 50, minY: -1, maxY: 0, minZ: -50, maxZ: 50, wall: false, top: 0 });
 
     // boundary walls
-    addBox(0, 0, -29, 60, 6, 1, 0x14161f, { emissive: 0x37e6ff, emissiveIntensity: 0.4 });
-    addBox(0, 0, 29, 60, 6, 1, 0x14161f, { emissive: 0xff2e9f, emissiveIntensity: 0.4 });
-    addBox(-29, 0, 0, 1, 6, 60, 0x14161f, { emissive: 0x37e6ff, emissiveIntensity: 0.25 });
-    addBox(29, 0, 0, 1, 6, 60, 0x14161f, { emissive: 0xff2e9f, emissiveIntensity: 0.25 });
+    addBox(0, 0, -50, 100, 8, 1.5, STEEL_DARK);
+    addBox(0, 0, 50, 100, 8, 1.5, STEEL_DARK);
+    addBox(-50, 0, 0, 1.5, 8, 100, STEEL_DARK);
+    addBox(50, 0, 0, 1.5, 8, 100, STEEL_DARK);
 
-    // central dividing cover with two chokepoint gaps
-    addBox(0, 0, -4, 10, 1.4, 1.2, 0x22263a, { emissive: 0x5566ff, emissiveIntensity: 0.3 });
-    addBox(0, 0, 4, 10, 1.4, 1.2, 0x22263a, { emissive: 0x5566ff, emissiveIntensity: 0.3 });
+    // spawn A shelter (blue accent) - open corner facing mid
+    addBox(-44, 0, -40, 1.2, 5, 10, STEEL, { emissive: TEAM_COLOR.A, emissiveIntensity: 0.18 });
+    addBox(-40, 0, -44, 10, 5, 1.2, STEEL, { emissive: TEAM_COLOR.A, emissiveIntensity: 0.18 });
 
-    // crates / cover scattered symmetrically
+    // spawn B shelter (amber accent)
+    addBox(44, 0, 40, 1.2, 5, 10, STEEL, { emissive: TEAM_COLOR.B, emissiveIntensity: 0.18 });
+    addBox(40, 0, 44, 10, 5, 1.2, STEEL, { emissive: TEAM_COLOR.B, emissiveIntensity: 0.18 });
+
+    // mid tower: two walls, walkable roof, ramp up
+    addBox(-8, 0, 0, 1.2, 5, 16, STEEL);
+    addBox(8, 0, 0, 1.2, 5, 16, STEEL);
+    addBox(0, 5, 0, 16, 1, 16, STEEL_DARK, { wall: false, top: 6 });
+    addBox(0, 0, 9, 4, 1.7, 2, STEEL, { wall: false, top: 1.7 });
+    addBox(0, 0, 11, 4, 3.4, 2, STEEL, { wall: false, top: 3.4 });
+    addBox(0, 0, 13, 4, 5, 2, STEEL, { wall: false, top: 5 });
+
+    // flank cover walls
+    addBox(-30, 0, 25, 1.2, 4, 8, STEEL);
+    addBox(30, 0, -25, 1.2, 4, 8, STEEL);
+
+    // crates (8 mirrored pairs)
     const crateSpots = [
-      [-8, 0, -8], [8, 0, 8], [-8, 0, 8], [8, 0, -8],
-      [-4, 0, 0], [4, 0, 0]
+      [-20, -10], [20, 10], [-10, -20], [10, 20], [-20, 10], [20, -10], [-10, 20], [10, -20],
+      [-25, 0], [25, 0], [0, -25], [0, 25], [-15, -30], [15, 30], [-30, -15], [30, 15]
     ];
-    crateSpots.forEach(([x, , z]) => addBox(x, 0, z, 2.2, 1.6, 2.2, 0x2a2e42, { emissive: 0x8844ff, emissiveIntensity: 0.15 }));
+    crateSpots.forEach(([x, z]) => addBox(x, 0, z, 2.4, 1.8, 2.4, CRATE, { roughness: 0.9 }));
 
-    // raised side platforms (team A bottom-left, team B top-right) with ramp-like steps
-    function platform(cx, cz, color) {
-      addBox(cx, 0, cz, 6, 1.2, 6, 0x1d2030, { top: true, emissive: color, emissiveIntensity: 0.2 });
-      colliders[colliders.length - 1].top = 1.2;
-      colliders[colliders.length - 1].wall = false;
-      // step up to it
-      addBox(cx * 0.55, 0, cz * 0.55, 2.2, 0.6, 2.2, 0x1d2030, { emissive: color, emissiveIntensity: 0.15 });
-      colliders[colliders.length - 1].top = 0.6;
-      colliders[colliders.length - 1].wall = false;
-    }
-    platform(-14, -14, 0x37e6ff);
-    platform(14, 14, 0xff2e9f);
-
-    // corner pillars for verticality/readability
-    [[-18, -18], [18, -18], [-18, 18], [18, 18]].forEach(([x, z]) => {
-      addBox(x, 0, z, 1.4, 5, 1.4, 0x181b28, { emissive: 0x37e6ff, emissiveIntensity: 0.35 });
+    // corner pillars for readability/scale
+    [[-48, -48], [48, -48], [-48, 48], [48, 48]].forEach(([x, z]) => {
+      addBox(x, 0, z, 1.4, 6, 1.4, STEEL_DARK);
     });
   }
   buildArena();
@@ -261,9 +294,8 @@
     eyeOffset: MovementConfig.eyeHeight,
     bobPhase: 0,
     landDip: 0,
-    weapon: 'pulse_blaster',
-    lastFireLocal: 0,
-    lastMeleeLocal: 0
+    activeSlot: 1,
+    cooldownUntil: { impulse_rifle: 0, impulse_pistol: 0, fist: 0, kinetic_boost: 0, frag_charge: 0 }
   };
 
   const keys = {};
@@ -308,7 +340,7 @@
   renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
   window.addEventListener('mousedown', (e) => {
     if (!pointerLocked || !player.alive) return;
-    if (e.button === 0) tryFire();
+    if (e.button === 0) useActiveSlot();
     if (e.button === 2) focusAiming = true;
   });
   window.addEventListener('mouseup', (e) => { if (e.button === 2) focusAiming = false; });
@@ -317,28 +349,19 @@
     return ['LOADING', 'PRE_MATCH', 'ROUND_ACTIVE', 'ROUND_END'].includes(matchState);
   }
 
-  function tryFire() {
-    const now = performance.now();
-    const wpn = WeaponDatabase.pulse_blaster;
-    if (now - player.lastFireLocal < wpn.cooldown * 1000) return;
-    if (matchState !== 'ROUND_ACTIVE') return;
-    player.lastFireLocal = now;
-    const dir = camDirection();
-    const origin = { x: camera.position.x, y: camera.position.y, z: camera.position.z };
-    socket.emit('fire', { origin, dir: { x: dir.x, y: dir.y, z: dir.z }, weapon: 'pulse_blaster' });
-    spawnTracer(origin, dir, wpn.color);
-    flashMuzzle();
+  function camDirection() {
+    const d = new THREE.Vector3(0, 0, -1);
+    d.applyQuaternion(camera.quaternion);
+    return d;
   }
 
+  // ---------------------------------------------------------------------
+  // Loadout slots: number keys select, left click uses whichever is active
+  // ---------------------------------------------------------------------
+  const SLOT_KEYS = { Digit1: 1, Digit2: 2, Digit3: 3, Digit4: 4, Digit5: 5 };
   window.addEventListener('keydown', (e) => {
-    if (e.code === 'KeyF' && pointerLocked && player.alive && matchState === 'ROUND_ACTIVE') {
-      const now = performance.now();
-      if (now - player.lastMeleeLocal < WeaponDatabase.energy_blade.cooldown * 1000) return;
-      player.lastMeleeLocal = now;
-      const dir = camDirection();
-      const origin = { x: camera.position.x, y: camera.position.y, z: camera.position.z };
-      socket.emit('melee', { origin, dir: { x: dir.x, y: dir.y, z: dir.z } });
-      spawnTracer(origin, dir, WeaponDatabase.energy_blade.color, 3.4);
+    if (SLOT_KEYS[e.code]) {
+      player.activeSlot = SLOT_KEYS[e.code];
     }
     if (e.code === 'Tab') { e.preventDefault(); document.getElementById('scoreboard').classList.add('show'); }
   });
@@ -346,10 +369,44 @@
     if (e.code === 'Tab') document.getElementById('scoreboard').classList.remove('show');
   });
 
-  function camDirection() {
-    const d = new THREE.Vector3(0, 0, -1);
-    d.applyQuaternion(camera.quaternion);
-    return d;
+  function useActiveSlot() {
+    if (matchState !== 'ROUND_ACTIVE') return;
+    const weaponId = SLOT_ORDER[player.activeSlot - 1];
+    const weapon = WeaponDatabase[weaponId];
+    const now = performance.now();
+    if (now < player.cooldownUntil[weaponId]) return;
+
+    const dir = camDirection();
+    const origin = { x: camera.position.x, y: camera.position.y, z: camera.position.z };
+
+    if (weapon.kind === 'gun') {
+      player.cooldownUntil[weaponId] = now + weapon.cooldown * 1000;
+      socket.emit('fire', { origin, dir: { x: dir.x, y: dir.y, z: dir.z }, weapon: weaponId });
+      spawnTracer(origin, dir, weapon.color, weapon.range * 0.9);
+      flashMuzzle();
+    } else if (weapon.kind === 'melee') {
+      player.cooldownUntil[weaponId] = now + weapon.cooldown * 1000;
+      socket.emit('melee', { origin, dir: { x: dir.x, y: dir.y, z: dir.z } });
+      spawnTracer(origin, dir, weapon.color, weapon.range);
+    } else if (weapon.kind === 'boost') {
+      // Pure movement ability - applied locally, no server round-trip (see
+      // header note). Gives a forward+upward burst in the look direction.
+      player.cooldownUntil[weaponId] = now + weapon.cooldown * 1000;
+      player.vel.x += dir.x * 9;
+      player.vel.z += dir.z * 9;
+      player.vel.y = Math.max(player.vel.y, 0) + 10.5;
+      player.grounded = false;
+      flashMuzzle();
+    } else if (weapon.kind === 'grenade') {
+      player.cooldownUntil[weaponId] = now + weapon.cooldown * 1000;
+      socket.emit('grenade', { origin, dir: { x: dir.x, y: dir.y, z: dir.z } });
+      const landing = {
+        x: origin.x + dir.x * weapon.range,
+        y: Math.max(0.3, origin.y + dir.y * weapon.range),
+        z: origin.z + dir.z * weapon.range
+      };
+      spawnGrenadeArc(origin, landing, weapon.color);
+    }
   }
 
   // simple tracer/impact VFX pool
@@ -377,6 +434,48 @@
   let muzzleFlashT = 0;
   function flashMuzzle() { muzzleFlashT = 0.06; }
 
+  // grenade lob + explosion VFX pool (visual only - the server resolves the
+  // actual blast damage instantly on a straight-line landing point; see
+  // resolveGrenade() in arenaServer.js for why, and the write-up's "known
+  // limitations" for the resulting small visual/authority timing mismatch)
+  const grenadeVisuals = [];
+  function spawnGrenadeArc(origin, landing, color) {
+    const geo = new THREE.SphereGeometry(0.18, 8, 8);
+    const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.7 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(origin.x, origin.y, origin.z);
+    scene.add(mesh);
+    grenadeVisuals.push({ mesh, origin: { x: origin.x, y: origin.y, z: origin.z }, landing, t: 0, duration: 0.45, exploded: false });
+  }
+  function updateGrenadeVisuals(dt) {
+    for (let i = grenadeVisuals.length - 1; i >= 0; i--) {
+      const g = grenadeVisuals[i];
+      g.t += dt;
+      if (!g.exploded) {
+        const p = Math.min(1, g.t / g.duration);
+        const x = g.origin.x + (g.landing.x - g.origin.x) * p;
+        const z = g.origin.z + (g.landing.z - g.origin.z) * p;
+        const straightY = g.origin.y + (g.landing.y - g.origin.y) * p;
+        const arc = Math.sin(p * Math.PI) * 3.2;
+        g.mesh.position.set(x, straightY + arc, z);
+        if (p >= 1) {
+          g.exploded = true;
+          g.t = 0;
+          g.mesh.position.set(g.landing.x, g.landing.y, g.landing.z);
+          g.mesh.material.transparent = true;
+        }
+      } else {
+        g.mesh.scale.setScalar(1 + g.t * 22);
+        g.mesh.material.opacity = Math.max(0, 1 - g.t * 2.2);
+        if (g.t > 0.5) {
+          scene.remove(g.mesh);
+          g.mesh.geometry.dispose(); g.mesh.material.dispose();
+          grenadeVisuals.splice(i, 1);
+        }
+      }
+    }
+  }
+
   // ---------------------------------------------------------------------
   // Movement update
   // ---------------------------------------------------------------------
@@ -388,12 +487,6 @@
     const wantSprint = !!keys['ShiftLeft'] && forward > 0 && !player.crouching;
     const wantCrouch = !!keys['ControlLeft'] || !!keys['KeyC'];
 
-    // slide trigger
-    if (wantCrouch && wantSprint === false && player.grounded && !player.sliding &&
-        player.slideCooldownTimer <= 0 && player.vel.length() > MovementConfig.sprintSpeed * 0.7 &&
-        keys['ShiftLeft']) {
-      // (kept for completeness; main trigger below handles the common case)
-    }
     const horizSpeedNow = Math.hypot(player.vel.x, player.vel.z);
     if (keys['ControlLeft'] && player.grounded && !player.sliding && player.slideCooldownTimer <= 0 &&
         (keys['ShiftLeft'] || horizSpeedNow > MovementConfig.walkSpeed * 0.9)) {
@@ -412,10 +505,9 @@
 
     if (player.sliding) {
       player.slideTimer -= dt;
-      // slope-aware decay: check ground ahead vs current for downhill/uphill feel
       const ahead = getGroundHeightAt(player.pos.x + player.vel.x * 0.1, player.pos.z + player.vel.z * 0.1);
       const here = getGroundHeightAt(player.pos.x, player.pos.z);
-      const decay = (ahead < here) ? 0.85 : 1.35; // downhill slower decay, uphill faster decay
+      const decay = (ahead < here) ? 0.85 : 1.35;
       const speed = player.vel.length();
       const newSpeed = Math.max(MovementConfig.crouchSpeed, speed - decay * MovementConfig.deceleration * 0.35 * dt);
       if (speed > 0.01) {
@@ -533,7 +625,7 @@
   });
 
   // remote avatars
-  const remotePlayers = new Map(); // key -> { mesh, nameSprite, targetPos, targetYaw, team }
+  const remotePlayers = new Map(); // key -> { group, targetPos, targetYaw, team, alive }
 
   function makeNameSprite(text) {
     const canvas = document.createElement('canvas');
@@ -589,7 +681,6 @@
       document.getElementById('loading-fill').style.width = Math.min(100, pct) + '%';
       if (pct >= 100) clearInterval(iv);
     }, 120);
-    // build/refresh avatars for roster (mesh transforms come via spawnAll)
   });
 
   socket.on('player:spawnAll', (list) => {
@@ -645,6 +736,10 @@
     }
   });
 
+  socket.on('grenade:thrown', (data) => {
+    if (data.key !== myKey) spawnGrenadeArc(data.origin, data.landing, WeaponDatabase.frag_charge.color);
+  });
+
   socket.on('player:hit', (data) => {
     if (data.targetKey === myKey) {
       player.health = data.health;
@@ -694,7 +789,7 @@
     const banner = document.getElementById('banner-center');
     const won = data.winnerTeam === myTeam;
     banner.textContent = data.winnerTeam ? (won ? 'ROUND WON' : 'ROUND LOST') : 'ROUND DRAW';
-    banner.style.color = won ? '#37e6ff' : '#ff2e6f';
+    banner.style.color = won ? '#5a9bd6' : '#d97a3f';
     banner.classList.add('show');
     document.getElementById('score-a').textContent = data.scoreA;
     document.getElementById('score-b').textContent = data.scoreB;
@@ -707,7 +802,7 @@
     if (document.pointerLockElement) document.exitPointerLock();
     const won = data.winnerTeam === myTeam;
     document.getElementById('matchend-title').textContent = won ? 'VICTORY' : 'DEFEAT';
-    document.getElementById('matchend-title').style.color = won ? '#37e6ff' : '#ff2e6f';
+    document.getElementById('matchend-title').style.color = won ? '#5a9bd6' : '#d97a3f';
     document.getElementById('matchend-score').textContent =
       'Final score ' + data.scoreA + ' — ' + data.scoreB + (data.reason === 'forfeit' ? ' (forfeit)' : '');
     document.getElementById('matchend-mvp').textContent = data.mvp ? ('MVP: ' + data.mvp.username + ' (' + data.mvp.eliminations + ' eliminations)') : '';
@@ -748,6 +843,26 @@
   function showEliminatedBanner() { document.getElementById('eliminated-banner').classList.add('show'); }
   function hideEliminatedBanner() { document.getElementById('eliminated-banner').classList.remove('show'); }
 
+  let slotHudAccum = 0;
+  function updateSlotHud(dt) {
+    slotHudAccum += dt;
+    if (slotHudAccum < 0.08) return; // throttle DOM writes to ~12/sec
+    slotHudAccum = 0;
+    const now = performance.now();
+    document.querySelectorAll('#weapon-slots .slot').forEach(el => {
+      const slotNum = parseInt(el.dataset.slot, 10);
+      const weaponId = SLOT_ORDER[slotNum - 1];
+      const weapon = WeaponDatabase[weaponId];
+      el.classList.toggle('active', slotNum === player.activeSlot);
+      const remain = Math.max(0, player.cooldownUntil[weaponId] - now);
+      const total = weapon.cooldown * 1000;
+      const frac = total > 0 ? Math.min(1, 1 - remain / total) : 1;
+      const fill = el.querySelector('.slot-cd');
+      if (fill) fill.style.width = (frac * 100) + '%';
+      el.classList.toggle('ready', remain <= 0);
+    });
+  }
+
   // ---------------------------------------------------------------------
   // Main loop
   // ---------------------------------------------------------------------
@@ -762,6 +877,8 @@
     applyCamera();
     sendInput();
     updateTracers(dt);
+    updateGrenadeVisuals(dt);
+    updateSlotHud(dt);
 
     // interpolate remote avatars toward their latest reported transform
     for (const av of remotePlayers.values()) {
@@ -776,15 +893,4 @@
     renderer.render(scene, camera);
   }
   animate();
-
-  // spectator fallback camera while eliminated: gently orbit above arena center
-  let specAngle = 0;
-  setInterval(() => {
-    if (!player.alive && inMatch()) {
-      specAngle += 0.01;
-      // no-op transform hook point (camera driven by applyCamera which is
-      // skipped while dead via updateMovement's early-return; provide a
-      // simple free-look fallback instead)
-    }
-  }, 50);
 })();

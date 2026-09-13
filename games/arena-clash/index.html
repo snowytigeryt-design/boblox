@@ -14,7 +14,7 @@
 <div id="screen-menu" class="screen active">
   <div class="menu-panel">
     <h1 class="game-logo">ARENA CLASH</h1>
-    <p class="tagline">Fast rounds. Compact arenas. First to five.</p>
+    <p class="tagline">Fast rounds. Wide-open arenas. First to five.</p>
     <button id="btn-play" class="btn-primary big">PLAY</button>
     <a href="/" class="btn-secondary">Back to Boblox Hub</a>
   </div>
@@ -52,8 +52,8 @@
 <!-- LOADING -->
 <div id="screen-loading" class="screen">
   <div class="menu-panel">
-    <h2>NEON DISTRICT</h2>
-    <p class="tagline" id="loading-tip">Tip: Slide into cover to break line of sight.</p>
+    <h2>OUTPOST</h2>
+    <p class="tagline" id="loading-tip">Tip: Walls and crates now actually block shots — use cover.</p>
     <div class="loading-bar"><div id="loading-fill"></div></div>
   </div>
 </div>
@@ -63,7 +63,7 @@
   <div class="menu-panel">
     <h2>Click to enter the arena</h2>
     <p class="tagline">Mouse to look &middot; WASD to move &middot; Shift sprint &middot; Ctrl slide &middot; Space jump</p>
-    <p class="tagline">Left click: Pulse Blaster &middot; F: Energy Blade &middot; Tab: Scoreboard</p>
+    <p class="tagline">1-5: Select item &middot; Left click: Use item &middot; Tab: Scoreboard</p>
   </div>
 </div>
 
@@ -86,8 +86,13 @@
   </div>
 
   <div id="hud-bottom-right">
-    <div class="weapon-name">PULSE BLASTER</div>
-    <div class="cooldown-wrap"><div id="cooldown-fill"></div></div>
+    <div id="weapon-slots">
+      <div class="slot" data-slot="1"><span class="slot-key">1</span><span class="slot-name">RIFLE</span><div class="slot-cd-wrap"><div class="slot-cd"></div></div></div>
+      <div class="slot" data-slot="2"><span class="slot-key">2</span><span class="slot-name">SIDEARM</span><div class="slot-cd-wrap"><div class="slot-cd"></div></div></div>
+      <div class="slot" data-slot="3"><span class="slot-key">3</span><span class="slot-name">FIST</span><div class="slot-cd-wrap"><div class="slot-cd"></div></div></div>
+      <div class="slot" data-slot="4"><span class="slot-key">4</span><span class="slot-name">BOOST</span><div class="slot-cd-wrap"><div class="slot-cd"></div></div></div>
+      <div class="slot" data-slot="5"><span class="slot-key">5</span><span class="slot-name">GRENADE</span><div class="slot-cd-wrap"><div class="slot-cd"></div></div></div>
+    </div>
   </div>
 
   <div id="hit-marker"></div>

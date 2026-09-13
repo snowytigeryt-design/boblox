@@ -10,14 +10,20 @@
 //   - Match / round state machine (LOBBY -> PRE_MATCH -> ROUND_ACTIVE ->
 //     ROUND_END -> ... -> MATCH_END)
 //   - Health, damage, elimination, round wins, match wins
+//   - Line-of-sight checks so weapons can't hit through walls/cover
 //   - Simple bot players so a solo tester can always find a match
 //
 // WHAT THE CLIENT OWNS (documented limitation, see chat writeup):
 //   - Movement simulation itself (client reports its own transform).
 //     The server sanity-clamps reported speed but does not yet re-simulate
-//     full physics. This is intentional for this phase - see "Known
-//     limitations" in the writeup. Anything that decides who WINS
-//     (health/elimination/round/match/currency-later) is server-side.
+//     full physics. Anything that decides who WINS (health/elimination/
+//     round/match/currency-later) is server-side.
+//
+// MAP GEOMETRY NOTE: ARENA_WALLS below is a simplified box list used ONLY to
+// check line-of-sight for combat (so shots/grenades can't pass through walls
+// or crates). It intentionally mirrors the visual/collision geometry built in
+// games/arena-clash/client.js's buildArena() - if you change the map layout
+// in one place, update the other to match, or hits and cover will disagree.
 // ============================================================================
 
 const MODES = {
@@ -30,19 +36,100 @@ const PRE_MATCH_SECONDS = 3;
 const ROUND_END_SECONDS = 3;
 const BOT_BACKFILL_WAIT_MS = 10000;
 const QUEUE_SCAN_INTERVAL_MS = 1500;
-const MAX_REPORTED_SPEED = 16; // studs/sec sanity clamp (sprint+slide burst headroom)
+const MAX_REPORTED_SPEED = 30; // studs/sec sanity clamp (sprint+slide+kinetic boost burst headroom)
 const BOT_TICK_MS = 350;
 
 // Data-driven equipment table - add new items here without touching combat logic.
+// Damage values are intentionally low: this is meant to be a sustained
+// firefight game, not a one-or-two-shot game.
 const EquipmentDatabase = {
-    pulse_blaster: { id: 'pulse_blaster', displayName: 'Pulse Blaster', slot: 'PRIMARY', damage: 34, cooldown: 0.28, range: 55, hitCone: 0.10 },
-    energy_blade: { id: 'energy_blade', displayName: 'Energy Blade', slot: 'MELEE', damage: 60, cooldown: 0.6, range: 3.4, hitCone: 0.55 }
+    impulse_rifle: { id: 'impulse_rifle', displayName: 'IMPULSE RIFLE', slot: 'PRIMARY', damage: 9, cooldown: 0.11, range: 85, hitCone: 0.085 },
+    impulse_pistol: { id: 'impulse_pistol', displayName: 'IMPULSE SIDEARM', slot: 'SECONDARY', damage: 11, cooldown: 0.22, range: 60, hitCone: 0.09 },
+    fist: { id: 'fist', displayName: 'FIST', slot: 'MELEE', damage: 22, cooldown: 0.55, range: 3.2, hitCone: 0.5 },
+    frag_charge: { id: 'frag_charge', displayName: 'FRAG CHARGE', slot: 'GRENADE', damage: 55, cooldown: 5, range: 22, radius: 6.5 }
+    // kinetic_boost (slot 4, jump boost) is a pure movement ability with no
+    // damage/combat effect, so it's handled entirely client-side - see
+    // client.js's WeaponDatabase.kinetic_boost.
 };
 
 const SPAWNS = {
-    A: [{ x: -13, y: 1, z: -13 }, { x: -15, y: 1, z: -9 }],
-    B: [{ x: 13, y: 1, z: 13 }, { x: 15, y: 1, z: 9 }]
+    A: [{ x: -40, y: 1, z: -40 }, { x: -43, y: 1, z: -36 }],
+    B: [{ x: 40, y: 1, z: 40 }, { x: 43, y: 1, z: 36 }]
 };
+
+// Simplified solid-geometry list for line-of-sight only (see file header note).
+// Format: {x,y,z,w,h,d} - a box centered at (x,z), sitting on top of y, with
+// width/height/depth w/h/d. Must be kept roughly in sync with client.js.
+const ARENA_WALLS = [
+    // boundary
+    { x: 0, y: 0, z: -50, w: 100, h: 8, d: 1.5 },
+    { x: 0, y: 0, z: 50, w: 100, h: 8, d: 1.5 },
+    { x: -50, y: 0, z: 0, w: 1.5, h: 8, d: 100 },
+    { x: 50, y: 0, z: 0, w: 1.5, h: 8, d: 100 },
+    // spawn A shelter (open corner facing mid)
+    { x: -44, y: 0, z: -40, w: 1.2, h: 5, d: 10 },
+    { x: -40, y: 0, z: -44, w: 10, h: 5, d: 1.2 },
+    // spawn B shelter
+    { x: 44, y: 0, z: 40, w: 1.2, h: 5, d: 10 },
+    { x: 40, y: 0, z: 44, w: 10, h: 5, d: 1.2 },
+    // mid tower walls + roof slab + access ramp
+    { x: -8, y: 0, z: 0, w: 1.2, h: 5, d: 16 },
+    { x: 8, y: 0, z: 0, w: 1.2, h: 5, d: 16 },
+    { x: 0, y: 5, z: 0, w: 16, h: 1, d: 16 },
+    { x: 0, y: 0, z: 9, w: 4, h: 1.7, d: 2 },
+    { x: 0, y: 0, z: 11, w: 4, h: 3.4, d: 2 },
+    { x: 0, y: 0, z: 13, w: 4, h: 5, d: 2 },
+    // flank cover walls
+    { x: -30, y: 0, z: 25, w: 1.2, h: 4, d: 8 },
+    { x: 30, y: 0, z: -25, w: 1.2, h: 4, d: 8 },
+    // crates (8 mirrored pairs)
+    { x: -20, y: 0, z: -10, w: 2.4, h: 1.8, d: 2.4 }, { x: 20, y: 0, z: 10, w: 2.4, h: 1.8, d: 2.4 },
+    { x: -10, y: 0, z: -20, w: 2.4, h: 1.8, d: 2.4 }, { x: 10, y: 0, z: 20, w: 2.4, h: 1.8, d: 2.4 },
+    { x: -20, y: 0, z: 10, w: 2.4, h: 1.8, d: 2.4 }, { x: 20, y: 0, z: -10, w: 2.4, h: 1.8, d: 2.4 },
+    { x: -10, y: 0, z: 20, w: 2.4, h: 1.8, d: 2.4 }, { x: 10, y: 0, z: -20, w: 2.4, h: 1.8, d: 2.4 },
+    { x: -25, y: 0, z: 0, w: 2.4, h: 1.8, d: 2.4 }, { x: 25, y: 0, z: 0, w: 2.4, h: 1.8, d: 2.4 },
+    { x: 0, y: 0, z: -25, w: 2.4, h: 1.8, d: 2.4 }, { x: 0, y: 0, z: 25, w: 2.4, h: 1.8, d: 2.4 },
+    { x: -15, y: 0, z: -30, w: 2.4, h: 1.8, d: 2.4 }, { x: 15, y: 0, z: 30, w: 2.4, h: 1.8, d: 2.4 },
+    { x: -30, y: 0, z: -15, w: 2.4, h: 1.8, d: 2.4 }, { x: 30, y: 0, z: 15, w: 2.4, h: 1.8, d: 2.4 },
+    // corner pillars
+    { x: -48, y: 0, z: -48, w: 1.4, h: 6, d: 1.4 }, { x: 48, y: 0, z: -48, w: 1.4, h: 6, d: 1.4 },
+    { x: -48, y: 0, z: 48, w: 1.4, h: 6, d: 1.4 }, { x: 48, y: 0, z: 48, w: 1.4, h: 6, d: 1.4 }
+].map(b => ({
+    minX: b.x - b.w / 2, maxX: b.x + b.w / 2,
+    minY: b.y, maxY: b.y + b.h,
+    minZ: b.z - b.d / 2, maxZ: b.z + b.d / 2
+}));
+
+// Slab-method ray/segment vs AABB test, clamped to the segment [0,1] range.
+// Returns true if the segment from a to b passes through the box at all.
+function segmentIntersectsBox(a, b, box) {
+    const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+    let tmin = 0, tmax = 1;
+    const axes = [
+        [dx, a.x, box.minX, box.maxX],
+        [dy, a.y, box.minY, box.maxY],
+        [dz, a.z, box.minZ, box.maxZ]
+    ];
+    for (const [d, o, lo, hi] of axes) {
+        if (Math.abs(d) < 1e-9) {
+            if (o < lo || o > hi) return false; // parallel and outside slab
+            continue;
+        }
+        let t1 = (lo - o) / d, t2 = (hi - o) / d;
+        if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; }
+        tmin = Math.max(tmin, t1);
+        tmax = Math.min(tmax, t2);
+        if (tmin > tmax) return false;
+    }
+    return true;
+}
+
+function isBlocked(a, b) {
+    for (const box of ARENA_WALLS) {
+        if (segmentIntersectsBox(a, b, box)) return true;
+    }
+    return false;
+}
 
 let matchCounter = 1;
 function nextMatchId() { return 'm' + (matchCounter++); }
@@ -84,6 +171,7 @@ class Match {
                 pos: { x: 0, y: 1, z: 0 },
                 yaw: 0,
                 lastFire: 0,
+                lastGrenade: 0,
                 lastInputAt: Date.now(),
                 botState: e.isBot ? { targetIdx: 0, wanderT: 0 } : null
             };
@@ -193,12 +281,25 @@ class Match {
         });
     }
 
+    applyDamage(attacker, target, damage) {
+        target.health = Math.max(0, target.health - damage);
+        this.nsp.to(this.room).emit('player:hit', {
+            targetKey: target.key, shooterKey: attacker.key, damage, health: target.health
+        });
+        if (target.health <= 0 && target.alive) {
+            target.alive = false;
+            attacker.eliminations++;
+            this.nsp.to(this.room).emit('player:eliminated', { key: target.key, by: attacker.key });
+            this.checkRoundEnd();
+        }
+    }
+
     resolveAttack(attackerKey, weaponId, origin, dir) {
         if (this.state !== 'ROUND_ACTIVE') return;
         const attacker = this.players.get(attackerKey);
         if (!attacker || !attacker.alive) return;
         const weapon = EquipmentDatabase[weaponId];
-        if (!weapon) return;
+        if (!weapon || weapon.slot === 'GRENADE') return; // grenades go through resolveGrenade
         const now = Date.now();
         if (now - attacker.lastFire < weapon.cooldown * 1000 - 30) return; // small grace for jitter
         attacker.lastFire = now;
@@ -206,31 +307,61 @@ class Match {
         const len = Math.sqrt(dir.x * dir.x + dir.y * dir.y + dir.z * dir.z) || 1;
         const ndir = { x: dir.x / len, y: dir.y / len, z: dir.z / len };
 
+        // Pick the best (smallest angle) target that is in range, within the
+        // weapon's aim cone, AND not blocked by a wall/crate in between -
+        // this is the actual "can't shoot through walls" fix.
         let best = null, bestDot = weapon.hitCone;
         for (const target of this.players.values()) {
             if (target.team === attacker.team || !target.alive) continue;
-            const to = { x: target.pos.x - origin.x, y: (target.pos.y + 0.9) - origin.y, z: target.pos.z - origin.z };
+            const targetPos = { x: target.pos.x, y: target.pos.y + 0.9, z: target.pos.z };
+            const to = { x: targetPos.x - origin.x, y: targetPos.y - origin.y, z: targetPos.z - origin.z };
             const d = Math.sqrt(to.x * to.x + to.y * to.y + to.z * to.z);
             if (d > weapon.range) continue;
             const ang = 1 - (to.x * ndir.x + to.y * ndir.y + to.z * ndir.z) / (d || 1);
-            if (ang < bestDot) { bestDot = ang; best = target; }
+            if (ang >= bestDot) continue;
+            if (isBlocked(origin, targetPos)) continue; // wall/cover in the way
+            bestDot = ang; best = target;
         }
 
         this.emitTo(attacker, 'weapon:fired', { weapon: weaponId });
         this.nsp.to(this.room).except(attacker.socket ? attacker.socket.id : '__none__')
             .emit('weapon:fired', { weapon: weaponId, key: attacker.key });
 
-        if (best) {
-            best.health = Math.max(0, best.health - weapon.damage);
-            this.nsp.to(this.room).emit('player:hit', {
-                targetKey: best.key, shooterKey: attacker.key, damage: weapon.damage, health: best.health
-            });
-            if (best.health <= 0) {
-                best.alive = false;
-                attacker.eliminations++;
-                this.nsp.to(this.room).emit('player:eliminated', { key: best.key, by: attacker.key });
-                this.checkRoundEnd();
-            }
+        if (best) this.applyDamage(attacker, best, weapon.damage);
+    }
+
+    resolveGrenade(attackerKey, origin, dir) {
+        if (this.state !== 'ROUND_ACTIVE') return;
+        const attacker = this.players.get(attackerKey);
+        if (!attacker || !attacker.alive) return;
+        const weapon = EquipmentDatabase.frag_charge;
+        const now = Date.now();
+        if (now - attacker.lastGrenade < weapon.cooldown * 1000 - 30) return;
+        attacker.lastGrenade = now;
+
+        const len = Math.sqrt(dir.x * dir.x + dir.y * dir.y + dir.z * dir.z) || 1;
+        const ndir = { x: dir.x / len, y: dir.y / len, z: dir.z / len };
+        // Simplified: no arc physics server-side (this server doesn't track
+        // map geometry beyond the line-of-sight box list), just a straight
+        // line projected out to the weapon's range. The client plays a lobbed
+        // visual arc that lands at roughly this same point for feel.
+        const landing = {
+            x: origin.x + ndir.x * weapon.range,
+            y: Math.max(0.3, origin.y + ndir.y * weapon.range),
+            z: origin.z + ndir.z * weapon.range
+        };
+
+        this.nsp.to(this.room).emit('grenade:thrown', { key: attacker.key, origin, landing });
+
+        for (const target of this.players.values()) {
+            if (target.team === attacker.team || !target.alive) continue;
+            const targetPos = { x: target.pos.x, y: target.pos.y + 0.9, z: target.pos.z };
+            const d = dist(landing, targetPos);
+            if (d > weapon.radius) continue;
+            if (isBlocked(landing, targetPos)) continue; // blast doesn't reach through walls either
+            const falloff = 1 - (d / weapon.radius);
+            const dmg = Math.round(weapon.damage * falloff);
+            if (dmg > 0) this.applyDamage(attacker, target, dmg);
         }
     }
 
@@ -326,7 +457,8 @@ class Match {
                 const d = dist(p.pos, t.pos);
                 if (d < nearestD) { nearestD = d; nearest = t; }
             }
-            if (nearest && nearestD < EquipmentDatabase.pulse_blaster.range) {
+            if (nearest && nearestD < EquipmentDatabase.impulse_rifle.range &&
+                !isBlocked({ x: p.pos.x, y: p.pos.y + 0.9, z: p.pos.z }, { x: nearest.pos.x, y: nearest.pos.y + 0.9, z: nearest.pos.z })) {
                 const dir = { x: nearest.pos.x - p.pos.x, y: 0, z: nearest.pos.z - p.pos.z };
                 const len = Math.sqrt(dir.x * dir.x + dir.z * dir.z) || 1;
                 dir.x /= len; dir.z /= len;
@@ -339,11 +471,11 @@ class Match {
                     p.pos.x += dir.x * 0.22;
                     p.pos.z += dir.z * 0.22;
                 }
-                this.resolveAttack(p.key, 'pulse_blaster', { x: p.pos.x, y: p.pos.y + 0.9, z: p.pos.z }, dir);
+                this.resolveAttack(p.key, 'impulse_rifle', { x: p.pos.x, y: p.pos.y + 0.9, z: p.pos.z }, dir);
             } else {
-                // idle wander near spawn
+                // idle wander near spawn (or toward mid if it lost sight of its target)
                 const pts = SPAWNS[p.team];
-                const home = pts[0];
+                const home = nearest ? { x: 0, y: 1, z: 0 } : pts[0];
                 p.pos.x += (home.x - p.pos.x) * 0.02;
                 p.pos.z += (home.z - p.pos.z) * 0.02;
             }
@@ -441,12 +573,17 @@ module.exports = function attachArena(io, db) {
 
         socket.on('fire', ({ origin, dir, weapon }) => {
             const match = findMatchByKey(socket.id);
-            if (match && origin && dir) match.resolveAttack(socket.id, weapon || 'pulse_blaster', origin, dir);
+            if (match && origin && dir) match.resolveAttack(socket.id, weapon || 'impulse_rifle', origin, dir);
         });
 
         socket.on('melee', ({ origin, dir }) => {
             const match = findMatchByKey(socket.id);
-            if (match && origin && dir) match.resolveAttack(socket.id, 'energy_blade', origin, dir);
+            if (match && origin && dir) match.resolveAttack(socket.id, 'fist', origin, dir);
+        });
+
+        socket.on('grenade', ({ origin, dir }) => {
+            const match = findMatchByKey(socket.id);
+            if (match && origin && dir) match.resolveGrenade(socket.id, origin, dir);
         });
 
         socket.on('leaveMatch', () => {

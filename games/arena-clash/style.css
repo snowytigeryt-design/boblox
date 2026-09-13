@@ -34,7 +34,7 @@ html, body {
   font-size: 54px;
   letter-spacing: 6px;
   font-weight: 900;
-  background: linear-gradient(45deg, #00e5ff, #ff2e9f);
+  background: linear-gradient(45deg, #5a9bd6, #d97a3f);
   -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
   margin-bottom: 10px;
 }
@@ -49,7 +49,7 @@ html, body {
   letter-spacing: 2px;
   border: none;
   border-radius: 10px;
-  background: linear-gradient(45deg, #00e5ff, #ff2e9f);
+  background: linear-gradient(45deg, #5a9bd6, #d97a3f);
   color: #05060a;
   cursor: pointer;
   transition: transform .15s, box-shadow .15s;
@@ -91,7 +91,7 @@ html, body {
 .spinner {
   width: 46px; height: 46px; margin: 0 auto 16px;
   border: 4px solid rgba(255,255,255,0.15);
-  border-top-color: #00e5ff;
+  border-top-color: #5a9bd6;
   border-radius: 50%;
   animation: spin 0.9s linear infinite;
 }
@@ -105,7 +105,7 @@ html, body {
 }
 #loading-fill {
   height: 100%; width: 0%;
-  background: linear-gradient(90deg, #00e5ff, #ff2e9f);
+  background: linear-gradient(90deg, #5a9bd6, #d97a3f);
   transition: width .2s;
 }
 
@@ -148,15 +148,37 @@ html, body {
 #health-num { font-size: 13px; margin-top: 4px; color: rgba(255,255,255,0.7); }
 
 #hud-bottom-right {
-  position: absolute; bottom: 30px; right: 30px; width: 180px; text-align: right;
+  position: absolute; bottom: 30px; right: 30px;
 }
-.weapon-name { font-size: 13px; letter-spacing: 2px; margin-bottom: 6px; color: rgba(255,255,255,0.8); }
-.cooldown-wrap {
-  height: 8px; border-radius: 4px; background: rgba(255,255,255,0.15); overflow: hidden;
+#weapon-slots {
+  display: flex; gap: 8px;
 }
-#cooldown-fill {
-  height: 100%; width: 100%; background: #00e5ff; transform-origin: left;
+.slot {
+  width: 68px;
+  padding: 8px 6px 6px;
+  border-radius: 8px;
+  background: rgba(0,0,0,0.45);
+  border: 1px solid rgba(255,255,255,0.15);
+  text-align: center;
+  opacity: 0.55;
+  transition: opacity .15s, border-color .15s, transform .15s;
 }
+.slot.active {
+  opacity: 1;
+  border-color: #5a9bd6;
+  transform: translateY(-3px);
+}
+.slot.ready.active { border-color: #7dffb0; }
+.slot-key {
+  display: block; font-size: 11px; font-weight: 900; color: rgba(255,255,255,0.6); margin-bottom: 2px;
+}
+.slot-name {
+  display: block; font-size: 9px; letter-spacing: 1px; color: rgba(255,255,255,0.85); margin-bottom: 5px;
+}
+.slot-cd-wrap {
+  height: 4px; border-radius: 2px; background: rgba(255,255,255,0.15); overflow: hidden;
+}
+.slot-cd { height: 100%; width: 0%; background: #7dffb0; }
 
 #hit-marker {
   position: absolute; top: 50%; left: 50%; width: 26px; height: 26px;
