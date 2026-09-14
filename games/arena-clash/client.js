@@ -59,8 +59,8 @@
   const SLOT_ORDER = ['impulse_rifle', 'impulse_pistol', 'fist', 'kinetic_boost', 'frag_charge'];
 
   const WeaponDatabase = {
-    impulse_rifle: { id: 'impulse_rifle', name: 'RIFLE', short: '1', kind: 'gun', cooldown: 0.11, range: 85, color: 0x9fd0ff },
-    impulse_pistol: { id: 'impulse_pistol', name: 'SIDEARM', short: '2', kind: 'gun', cooldown: 0.22, range: 60, color: 0x9fd0ff },
+    impulse_rifle: { id: 'impulse_rifle', name: 'RIFLE', short: '1', kind: 'gun', auto: true, cooldown: 0.11, range: 85, color: 0x9fd0ff },
+    impulse_pistol: { id: 'impulse_pistol', name: 'SIDEARM', short: '2', kind: 'gun', auto: false, cooldown: 0.22, range: 60, color: 0x9fd0ff },
     fist: { id: 'fist', name: 'FIST', short: '3', kind: 'melee', cooldown: 0.55, range: 3.2, color: 0xffd27a },
     kinetic_boost: { id: 'kinetic_boost', name: 'BOOST', short: '4', kind: 'boost', cooldown: 8, color: 0x7dffb0 },
     frag_charge: { id: 'frag_charge', name: 'GRENADE', short: '5', kind: 'grenade', cooldown: 5, range: 22, color: 0xff8a4a }
@@ -139,6 +139,7 @@
   scene.fog = new THREE.Fog(0x1b1e22, 35, 130);
 
   const camera = new THREE.PerspectiveCamera(CameraConfig.baseFov, window.innerWidth / window.innerHeight, 0.1, 400);
+  scene.add(camera); // required so the camera-attached viewmodel (see below) actually gets rendered
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -162,6 +163,73 @@
   const spawnLightB = new THREE.PointLight(TEAM_COLOR.B, 0.9, 30);
   spawnLightB.position.set(40, 6, 40);
   scene.add(spawnLightB);
+
+  // ---------------------------------------------------------------------
+  // First-person viewmodel (the "gun in your hand"). Reads a shared
+  // right/left-hand preference set from the Boblox hub's Settings screen
+  // (stored in localStorage under 'boblox_settings' - same origin, so both
+  // pages see it). Defaults to right-handed if never set.
+  // ---------------------------------------------------------------------
+  function getGunHand() {
+    try {
+      const raw = localStorage.getItem('boblox_settings');
+      if (!raw) return 'right';
+      const parsed = JSON.parse(raw);
+      return (parsed && parsed.gunHand === 'left') ? 'left' : 'right';
+    } catch (e) { return 'right'; }
+  }
+  const gunHand = getGunHand();
+
+  function buildGunMesh(accentColor) {
+    const g = new THREE.Group();
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0x2b2e33, roughness: 0.5, metalness: 0.4 });
+    const accentMat = new THREE.MeshStandardMaterial({ color: accentColor, emissive: accentColor, emissiveIntensity: 0.5 });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.13, 0.5), bodyMat);
+    body.position.set(0, 0, -0.1);
+    g.add(body);
+    const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.32), accentMat);
+    barrel.position.set(0, 0.015, -0.5);
+    g.add(barrel);
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.22, 0.09), bodyMat);
+    grip.position.set(0, -0.15, 0.08);
+    grip.rotation.x = 0.35;
+    g.add(grip);
+    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.16, 0.08), bodyMat);
+    mag.position.set(0, -0.13, -0.06);
+    g.add(mag);
+    return g;
+  }
+
+  const gunModel = buildGunMesh(WeaponDatabase.impulse_rifle.color);
+  const pistolModel = buildGunMesh(WeaponDatabase.impulse_pistol.color);
+  pistolModel.scale.setScalar(0.68);
+  const grenadeModel = new THREE.Mesh(
+    new THREE.SphereGeometry(0.09, 10, 10),
+    new THREE.MeshStandardMaterial({ color: WeaponDatabase.frag_charge.color, emissive: WeaponDatabase.frag_charge.color, emissiveIntensity: 0.5 })
+  );
+
+  const viewmodel = new THREE.Group();
+  const viewmodelSide = gunHand === 'left' ? -1 : 1;
+  viewmodel.position.set(viewmodelSide * 0.28, -0.26, -0.55);
+  viewmodel.scale.x = viewmodelSide; // mirror the model itself for the left hand
+  viewmodel.add(gunModel, pistolModel, grenadeModel);
+  camera.add(viewmodel);
+
+  function updateViewmodelForSlot() {
+    gunModel.visible = player.activeSlot === 1;
+    pistolModel.visible = player.activeSlot === 2;
+    grenadeModel.visible = player.activeSlot === 5;
+    // slots 3 (fist) and 4 (boost) show an empty hand - nothing to attach
+  }
+  updateViewmodelForSlot();
+
+  function getMuzzleWorldPos() {
+    const activeModel = player.activeSlot === 1 ? gunModel : (player.activeSlot === 2 ? pistolModel : null);
+    const out = new THREE.Vector3();
+    if (activeModel && activeModel.visible) activeModel.getWorldPosition(out);
+    else camera.getWorldPosition(out);
+    return out;
+  }
 
   // ---- collision colliders (simple AABBs) ----
   const colliders = []; // { minX,maxX,minY,maxY,minZ,maxZ, wall:boolean, top? }
@@ -246,13 +314,20 @@
   }
   buildArena();
 
-  function getGroundHeightAt(x, z) {
+  function getGroundHeightAt(x, z, currentY) {
     let top = 0;
     for (const c of colliders) {
       if (c.wall) continue;
       if (x >= c.minX && x <= c.maxX && z >= c.minZ && z <= c.maxZ) {
         const h = (c.top !== undefined) ? c.top : c.maxY;
-        if (h > top) top = h;
+        // Only accept this platform's top as standable ground if the player
+        // is already at or near its own base height (climbing stairs, or
+        // falling onto it from above). Without this check, a platform
+        // floating overhead (e.g. the tower roof, base height 5) would act
+        // as solid floor for someone simply walking underneath it at ground
+        // level, teleporting them straight up - that was the "walk into a
+        // wall and get teleported up" bug.
+        if (h > top && currentY >= c.minY - 0.6) top = h;
       }
     }
     return top;
@@ -337,13 +412,23 @@
   });
 
   let focusAiming = false;
+  let leftMouseDown = false;
   renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
   window.addEventListener('mousedown', (e) => {
     if (!pointerLocked || !player.alive) return;
-    if (e.button === 0) useActiveSlot();
+    if (e.button === 0) {
+      leftMouseDown = true;
+      // Auto weapons (the rifle) fire continuously while held - handled in
+      // the main loop below. Everything else fires once per click.
+      const weaponId = SLOT_ORDER[player.activeSlot - 1];
+      if (!WeaponDatabase[weaponId].auto) useActiveSlot();
+    }
     if (e.button === 2) focusAiming = true;
   });
-  window.addEventListener('mouseup', (e) => { if (e.button === 2) focusAiming = false; });
+  window.addEventListener('mouseup', (e) => {
+    if (e.button === 0) leftMouseDown = false;
+    if (e.button === 2) focusAiming = false;
+  });
 
   function inMatch() {
     return ['LOADING', 'PRE_MATCH', 'ROUND_ACTIVE', 'ROUND_END'].includes(matchState);
@@ -362,6 +447,7 @@
   window.addEventListener('keydown', (e) => {
     if (SLOT_KEYS[e.code]) {
       player.activeSlot = SLOT_KEYS[e.code];
+      updateViewmodelForSlot();
     }
     if (e.code === 'Tab') { e.preventDefault(); document.getElementById('scoreboard').classList.add('show'); }
   });
@@ -377,17 +463,25 @@
     if (now < player.cooldownUntil[weaponId]) return;
 
     const dir = camDirection();
+    // origin sent to the server stays the true eye/camera position - this is
+    // what hit detection is based on, and must line up with the crosshair.
     const origin = { x: camera.position.x, y: camera.position.y, z: camera.position.z };
 
     if (weapon.kind === 'gun') {
       player.cooldownUntil[weaponId] = now + weapon.cooldown * 1000;
       socket.emit('fire', { origin, dir: { x: dir.x, y: dir.y, z: dir.z }, weapon: weaponId });
-      spawnTracer(origin, dir, weapon.color, weapon.range * 0.9);
+      // The VISIBLE tracer starts from the viewmodel's muzzle instead of dead
+      // center of the screen - a bullet traveling straight down the center of
+      // your own view is nearly invisible (foreshortened to a dot), which is
+      // why standing still and shooting looked like nothing was happening.
+      spawnTracer(getMuzzleWorldPos(), dir, weapon.color, weapon.range * 0.9);
       flashMuzzle();
     } else if (weapon.kind === 'melee') {
       player.cooldownUntil[weaponId] = now + weapon.cooldown * 1000;
       socket.emit('melee', { origin, dir: { x: dir.x, y: dir.y, z: dir.z } });
-      spawnTracer(origin, dir, weapon.color, weapon.range);
+      // Distinct swing flash, NOT a tracer - fists shouldn't look like they're
+      // firing a projectile.
+      spawnMeleeSwing(weapon.color);
     } else if (weapon.kind === 'boost') {
       // Pure movement ability - applied locally, no server round-trip (see
       // header note). Gives a forward+upward burst in the look direction.
@@ -409,30 +503,64 @@
     }
   }
 
-  // simple tracer/impact VFX pool
+  // simple tracer VFX pool - a thin glowing cylinder oriented along the shot
+  // direction (a flat THREE.Line was nearly invisible when fired straight
+  // down the view axis, since it foreshortens to almost a point on screen)
   const tracers = [];
   function spawnTracer(origin, dir, color, length) {
     length = length || 40;
-    const points = [
-      new THREE.Vector3(origin.x, origin.y, origin.z),
-      new THREE.Vector3(origin.x + dir.x * length, origin.y + dir.y * length, origin.z + dir.z * length)
-    ];
-    const geo = new THREE.BufferGeometry().setFromPoints(points);
-    const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 });
-    const line = new THREE.Line(geo, mat);
-    scene.add(line);
-    tracers.push({ line, t: 0 });
+    const radius = 0.035;
+    const geo = new THREE.CylinderGeometry(radius, radius, length, 6, 1, true);
+    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85 });
+    const mesh = new THREE.Mesh(geo, mat);
+    const start = new THREE.Vector3(origin.x, origin.y, origin.z);
+    const dirVec = new THREE.Vector3(dir.x, dir.y, dir.z).normalize();
+    const end = start.clone().addScaledVector(dirVec, length);
+    mesh.position.copy(start).addScaledVector(dirVec, length / 2);
+    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dirVec);
+    scene.add(mesh);
+    tracers.push({ mesh, t: 0 });
   }
   function updateTracers(dt) {
     for (let i = tracers.length - 1; i >= 0; i--) {
       const tr = tracers[i];
       tr.t += dt;
-      tr.line.material.opacity = Math.max(0, 0.9 - tr.t * 4);
-      if (tr.t > 0.25) { scene.remove(tr.line); tracers.splice(i, 1); }
+      tr.mesh.material.opacity = Math.max(0, 0.85 - tr.t * 2.4);
+      if (tr.t > 0.35) {
+        scene.remove(tr.mesh);
+        tr.mesh.geometry.dispose(); tr.mesh.material.dispose();
+        tracers.splice(i, 1);
+      }
     }
   }
   let muzzleFlashT = 0;
   function flashMuzzle() { muzzleFlashT = 0.06; }
+
+  // melee swing flash - attached to the camera (screen-space fixed) rather
+  // than traveling through the world, so it reads as an impact/swipe rather
+  // than a fired projectile.
+  const meleeSwings = [];
+  function spawnMeleeSwing(color) {
+    const geo = new THREE.RingGeometry(0.05, 0.1, 16);
+    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, side: THREE.DoubleSide });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(0.12, -0.12, -0.5);
+    camera.add(mesh);
+    meleeSwings.push({ mesh, t: 0 });
+  }
+  function updateMeleeSwings(dt) {
+    for (let i = meleeSwings.length - 1; i >= 0; i--) {
+      const s = meleeSwings[i];
+      s.t += dt;
+      s.mesh.scale.setScalar(1 + s.t * 7);
+      s.mesh.material.opacity = Math.max(0, 0.9 - s.t * 4.5);
+      if (s.t > 0.22) {
+        camera.remove(s.mesh);
+        s.mesh.geometry.dispose(); s.mesh.material.dispose();
+        meleeSwings.splice(i, 1);
+      }
+    }
+  }
 
   // grenade lob + explosion VFX pool (visual only - the server resolves the
   // actual blast damage instantly on a straight-line landing point; see
@@ -505,8 +633,8 @@
 
     if (player.sliding) {
       player.slideTimer -= dt;
-      const ahead = getGroundHeightAt(player.pos.x + player.vel.x * 0.1, player.pos.z + player.vel.z * 0.1);
-      const here = getGroundHeightAt(player.pos.x, player.pos.z);
+      const ahead = getGroundHeightAt(player.pos.x + player.vel.x * 0.1, player.pos.z + player.vel.z * 0.1, player.pos.y);
+      const here = getGroundHeightAt(player.pos.x, player.pos.z, player.pos.y);
       const decay = (ahead < here) ? 0.85 : 1.35;
       const speed = player.vel.length();
       const newSpeed = Math.max(MovementConfig.crouchSpeed, speed - decay * MovementConfig.deceleration * 0.35 * dt);
@@ -564,7 +692,7 @@
     resolveWallCollision(nextPos, 0.4);
     nextPos.y += player.vel.y * dt;
 
-    const groundY = getGroundHeightAt(nextPos.x, nextPos.z);
+    const groundY = getGroundHeightAt(nextPos.x, nextPos.z, nextPos.y);
     if (nextPos.y <= groundY) {
       if (!wasGrounded && player.vel.y < -6) player.landDip = Math.min(0.18, -player.vel.y * 0.02);
       nextPos.y = groundY;
@@ -876,8 +1004,17 @@
     updateMovement(dt);
     applyCamera();
     sendInput();
+
+    // Continuous fire for auto weapons (the rifle) while the mouse is held -
+    // everything else only fires on the initial click (handled in mousedown).
+    if (leftMouseDown && pointerLocked && player.alive && matchState === 'ROUND_ACTIVE') {
+      const heldWeaponId = SLOT_ORDER[player.activeSlot - 1];
+      if (WeaponDatabase[heldWeaponId].auto) useActiveSlot();
+    }
+
     updateTracers(dt);
     updateGrenadeVisuals(dt);
+    updateMeleeSwings(dt);
     updateSlotHud(dt);
 
     // interpolate remote avatars toward their latest reported transform

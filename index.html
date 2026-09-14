@@ -50,6 +50,7 @@
                     <button id="btn-chat-nav" class="nav-btn">Chat</button>
                     <button id="btn-friends-nav" class="nav-btn">Friends</button>
                     <button id="btn-groups-nav" class="nav-btn">Groups</button>
+                    <button id="btn-settings-nav" class="nav-btn">Settings</button>
                     <button id="btn-logout" class="nav-btn">Logout</button>
                 </div>
             </nav>
@@ -208,6 +209,37 @@
                     <h2>Discover Groups</h2>
                     <div id="all-groups-list" class="groups-list"></div>
                 </section>
+            </main>
+        </div>
+
+        <!-- Settings Screen -->
+        <div id="settings-screen" class="screen">
+            <nav class="navbar">
+                <div class="logo">BOBLOX</div>
+                <div class="nav-items">
+                    <span id="settings-nav-username">Player</span>
+                    <button id="btn-settings-back" class="nav-btn">Back to Hub</button>
+                    <button id="btn-logout-settings" class="nav-btn">Logout</button>
+                </div>
+            </nav>
+
+            <main class="profile-content">
+                <div class="profile-section">
+                    <h2>Game Settings</h2>
+                    <p class="bio">These apply across games on Boblox, including Arena Clash.</p>
+                    <div class="privacy-settings">
+                        <label>
+                            <input type="radio" name="gun-hand" id="setting-hand-right" value="right" checked>
+                            Weapon view model: Right hand
+                        </label>
+                        <label>
+                            <input type="radio" name="gun-hand" id="setting-hand-left" value="left">
+                            Weapon view model: Left hand
+                        </label>
+                    </div>
+                    <button id="btn-save-settings" class="primary-btn">Save Settings</button>
+                    <p id="settings-saved-msg" class="bio" style="display:none;">Saved! Changes apply next time you enter Arena Clash.</p>
+                </div>
             </main>
         </div>
 

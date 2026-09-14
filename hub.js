@@ -12,6 +12,7 @@ const profileScreen = document.getElementById('profile-screen');
 const discoveryScreen = document.getElementById('discovery-screen');
 const chatScreen = document.getElementById('chat-screen');
 const groupsScreen = document.getElementById('groups-screen');
+const settingsScreen = document.getElementById('settings-screen');
 const friendsModal = document.getElementById('friends-modal');
 const createGroupModal = document.getElementById('create-group-modal');
 
@@ -35,6 +36,7 @@ function showScreen(screenName) {
     discoveryScreen.classList.remove('active');
     chatScreen.classList.remove('active');
     groupsScreen.classList.remove('active');
+    settingsScreen.classList.remove('active');
     
     if (screenName === 'login') {
         loginScreen.classList.add('active');
@@ -56,6 +58,9 @@ function showScreen(screenName) {
     } else if (screenName === 'groups') {
         groupsScreen.classList.add('active');
         loadGroups();
+    } else if (screenName === 'settings') {
+        settingsScreen.classList.add('active');
+        loadSettings();
     }
 }
 
@@ -77,18 +82,24 @@ function setupEventListeners() {
         loadFriends();
     });
     document.getElementById('btn-groups-nav').addEventListener('click', () => showScreen('groups'));
+    document.getElementById('btn-settings-nav').addEventListener('click', () => showScreen('settings'));
     
     // Back buttons
     document.getElementById('btn-profile-back').addEventListener('click', () => showScreen('hub'));
     document.getElementById('btn-discovery-back').addEventListener('click', () => showScreen('hub'));
     document.getElementById('btn-chat-back').addEventListener('click', () => showScreen('hub'));
     document.getElementById('btn-groups-back').addEventListener('click', () => showScreen('hub'));
+    document.getElementById('btn-settings-back').addEventListener('click', () => showScreen('hub'));
     
     // Logout buttons on other screens
     document.getElementById('btn-logout-profile').addEventListener('click', handleLogout);
     document.getElementById('btn-logout-discovery').addEventListener('click', handleLogout);
     document.getElementById('btn-logout-chat').addEventListener('click', handleLogout);
     document.getElementById('btn-logout-groups').addEventListener('click', handleLogout);
+    document.getElementById('btn-logout-settings').addEventListener('click', handleLogout);
+
+    // Settings
+    document.getElementById('btn-save-settings').addEventListener('click', saveSettings);
     
     // Friends modal
     document.getElementById('btn-close-friends').addEventListener('click', () => {
@@ -143,6 +154,7 @@ async function handleLogin(e) {
             document.getElementById('discovery-nav-username').textContent = currentUser.username;
             document.getElementById('chat-nav-username').textContent = currentUser.username;
             document.getElementById('groups-nav-username').textContent = currentUser.username;
+            document.getElementById('settings-nav-username').textContent = currentUser.username;
             showScreen('hub');
             errorEl.textContent = '';
         } else {
@@ -178,6 +190,7 @@ async function handleRegister(e) {
             document.getElementById('discovery-nav-username').textContent = currentUser.username;
             document.getElementById('chat-nav-username').textContent = currentUser.username;
             document.getElementById('groups-nav-username').textContent = currentUser.username;
+            document.getElementById('settings-nav-username').textContent = currentUser.username;
             showScreen('hub');
             errorEl.textContent = '';
         } else {
@@ -203,6 +216,7 @@ async function verifyToken() {
             document.getElementById('discovery-nav-username').textContent = currentUser.username;
             document.getElementById('chat-nav-username').textContent = currentUser.username;
             document.getElementById('groups-nav-username').textContent = currentUser.username;
+            document.getElementById('settings-nav-username').textContent = currentUser.username;
             showScreen('hub');
         } else {
             localStorage.removeItem('boblox_token');
@@ -498,6 +512,28 @@ function connectSocket() {
             loadMessages(currentChatUserId);
         }
     });
+}
+
+// Settings Functions
+// Stored in localStorage (not the account DB) - same-origin pages like
+// games/arena-clash read this directly under the same key, no API needed.
+function loadSettings() {
+    let settings = {};
+    try { settings = JSON.parse(localStorage.getItem('boblox_settings')) || {}; } catch (e) { settings = {}; }
+    const hand = settings.gunHand === 'left' ? 'left' : 'right';
+    document.getElementById('setting-hand-right').checked = (hand === 'right');
+    document.getElementById('setting-hand-left').checked = (hand === 'left');
+    document.getElementById('settings-saved-msg').style.display = 'none';
+}
+
+function saveSettings() {
+    let settings = {};
+    try { settings = JSON.parse(localStorage.getItem('boblox_settings')) || {}; } catch (e) { settings = {}; }
+    settings.gunHand = document.getElementById('setting-hand-left').checked ? 'left' : 'right';
+    localStorage.setItem('boblox_settings', JSON.stringify(settings));
+    const msg = document.getElementById('settings-saved-msg');
+    msg.style.display = 'block';
+    setTimeout(() => { msg.style.display = 'none'; }, 2500);
 }
 
 // Profile Functions
