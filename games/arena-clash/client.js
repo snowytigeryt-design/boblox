@@ -77,6 +77,8 @@
   });
   function showScreen(name) {
     Object.values(screens).forEach(el => el.classList.remove('active'));
+    const errEl = document.getElementById('screen-connection-error');
+    if (errEl) errEl.classList.remove('active');
     if (name && screens[name]) screens[name].classList.add('active');
   }
   const hud = document.getElementById('hud');
@@ -98,6 +100,44 @@
   let myTeam = 'A';
   let matchState = 'LOBBY';
   let currentMode = '1v1';
+
+  // myKey must exist from the moment the socket connects, not from whenever
+  // 'match:found' happens to arrive - the server's very first spawn message
+  // for a match (player:you / player:spawnAll) is actually sent BEFORE
+  // match:found, so relying on match:found to set myKey meant the client
+  // failed to recognize itself in that first spawnAll and rendered a
+  // duplicate "ghost" copy of its own player.
+  socket.on('connect', () => { myKey = socket.id; });
+
+  function showConnectionError(message) {
+    Object.values(screens).forEach(el => el.classList.remove('active'));
+    setHudActive(false);
+    let el = document.getElementById('screen-connection-error');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'screen-connection-error';
+      el.className = 'screen';
+      el.innerHTML = '<div class="menu-panel"><h2>Connection problem</h2>' +
+        '<p class="tagline" id="connection-error-text"></p>' +
+        '<button id="btn-connection-reload" class="btn-primary">Reload</button>' +
+        '<a href="/" class="btn-secondary">Return to Hub</a></div>';
+      document.body.appendChild(el);
+      document.getElementById('btn-connection-reload').onclick = () => window.location.reload();
+    }
+    document.getElementById('connection-error-text').textContent = message;
+    el.classList.add('active');
+  }
+
+  socket.on('connect_error', (err) => {
+    showConnectionError('Could not reach the match server (' + err.message + '). This usually means your session expired - try reloading, or log back in from the hub.');
+  });
+
+  socket.on('disconnect', (reason) => {
+    if (reason === 'io client disconnect') return; // we initiated it (e.g. navigating away)
+    if (screens.queue.classList.contains('active') || inMatch()) {
+      showConnectionError('Lost connection to the match server (' + reason + '). Try reloading.');
+    }
+  });
 
   // ---------------------------------------------------------------------
   // Menu wiring
@@ -126,6 +166,13 @@
       document.getElementById('queue-timer').textContent =
         String(Math.floor(s / 60)) + ':' + String(s % 60).padStart(2, '0');
       document.getElementById('queue-dots').textContent = '.'.repeat((s % 3) + 1);
+      // The server always finds you a match (with a bot if needed) within
+      // ~11-12 seconds. Taking far longer than that means something is
+      // actually wrong (dropped connection, server issue) - say so instead
+      // of spinning forever with no explanation.
+      if (s >= 25) {
+        showConnectionError('Still searching after ' + s + 's - that\'s much longer than normal. Your connection to the match server may have dropped. Try reloading.');
+      }
     }
   }, 400);
 
@@ -799,7 +846,6 @@
   });
 
   socket.on('match:found', (data) => {
-    myKey = socket.id;
     const me = data.players.find(p => p.key === myKey);
     if (me) myTeam = me.team;
     showScreen('loading');
@@ -809,6 +855,14 @@
       document.getElementById('loading-fill').style.width = Math.min(100, pct) + '%';
       if (pct >= 100) clearInterval(iv);
     }, 120);
+    const loadingWatchdog = setTimeout(() => {
+      if (screens.loading.classList.contains('active')) {
+        showConnectionError('The match found you but never actually started. Try reloading.');
+      }
+    }, 8000);
+    // Cleared the moment the real match:state handler moves us off this
+    // screen (see below) - this is just a safety net for if it never does.
+    socket.once('match:state', () => clearTimeout(loadingWatchdog));
   });
 
   socket.on('player:spawnAll', (list) => {
