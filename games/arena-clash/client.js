@@ -268,7 +268,6 @@
     grenadeModel.visible = player.activeSlot === 5;
     // slots 3 (fist) and 4 (boost) show an empty hand - nothing to attach
   }
-  updateViewmodelForSlot();
 
   function getMuzzleWorldPos() {
     const activeModel = player.activeSlot === 1 ? gunModel : (player.activeSlot === 2 ? pistolModel : null);
@@ -419,6 +418,7 @@
     activeSlot: 1,
     cooldownUntil: { impulse_rifle: 0, impulse_pistol: 0, fist: 0, kinetic_boost: 0, frag_charge: 0 }
   };
+  updateViewmodelForSlot(); // safe now that player exists (was the bug - see above)
 
   const keys = {};
   window.addEventListener('keydown', (e) => { keys[e.code] = true; });
