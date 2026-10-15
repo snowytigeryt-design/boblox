@@ -45,6 +45,11 @@
                 <div class="logo">BOBLOX</div>
                 <div class="nav-items">
                     <span id="nav-username">Player</span>
+                    <div class="b-bucks-display">
+                        <span class="b-bucks-icon">💎</span>
+                        <span id="nav-b-bucks">0</span>
+                        <button id="btn-shop-nav" class="shop-btn">Shop</button>
+                    </div>
                     <button id="btn-profile-nav" class="nav-btn">Profile</button>
                     <button id="btn-discovery-nav" class="nav-btn">Discover</button>
                     <button id="btn-chat-nav" class="nav-btn">Chat</button>
@@ -288,6 +293,73 @@
                 <div class="friends-section">
                     <h3>Your Friends</h3>
                     <div id="friends-list" class="friends-list"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- B-Bucks Shop Modal -->
+        <div id="shop-modal" class="modal">
+            <div class="modal-content shop-modal">
+                <div class="modal-header">
+                    <h2>💎 B-Bucks Shop</h2>
+                    <button id="btn-close-shop" class="close-btn">&times;</button>
+                </div>
+                
+                <div class="shop-balance">
+                    <h3>Your Balance: <span id="shop-b-bucks">0</span> 💎</h3>
+                </div>
+
+                <div class="shop-section">
+                    <h3>Purchase B-Bucks</h3>
+                    <p class="shop-note">Buy B-Bucks with real money (display only)</p>
+                    <div class="shop-packages">
+                        <div class="shop-package">
+                            <div class="package-icon">💎</div>
+                            <h4>Starter Pack</h4>
+                            <p class="package-amount">100 B-Bucks</p>
+                            <p class="package-price">$0.99</p>
+                            <button class="buy-btn" onclick="alert('Purchase feature coming soon!')">Buy</button>
+                        </div>
+                        <div class="shop-package">
+                            <div class="package-icon">💎💎</div>
+                            <h4>Basic Pack</h4>
+                            <p class="package-amount">500 B-Bucks</p>
+                            <p class="package-price">$4.99</p>
+                            <button class="buy-btn" onclick="alert('Purchase feature coming soon!')">Buy</button>
+                        </div>
+                        <div class="shop-package featured">
+                            <div class="featured-badge">BEST VALUE</div>
+                            <div class="package-icon">💎💎💎</div>
+                            <h4>Premium Pack</h4>
+                            <p class="package-amount">1,200 B-Bucks</p>
+                            <p class="package-price">$9.99</p>
+                            <button class="buy-btn" onclick="alert('Purchase feature coming soon!')">Buy</button>
+                        </div>
+                        <div class="shop-package">
+                            <div class="package-icon">💎💎💎💎</div>
+                            <h4>Ultimate Pack</h4>
+                            <p class="package-amount">2,500 B-Bucks</p>
+                            <p class="package-price">$19.99</p>
+                            <button class="buy-btn" onclick="alert('Purchase feature coming soon!')">Buy</button>
+                        </div>
+                        <div class="shop-package">
+                            <div class="package-icon">👑</div>
+                            <h4>Legendary Pack</h4>
+                            <p class="package-amount">5,000 B-Bucks</p>
+                            <p class="package-price">$39.99</p>
+                            <button class="buy-btn" onclick="alert('Purchase feature coming soon!')">Buy</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="shop-section">
+                    <h3>How to Earn B-Bucks</h3>
+                    <ul class="earn-methods">
+                        <li>🎮 Play games - Earn 1-5 B-Bucks per session</li>
+                        <li>⏰ Stay online - Earn 1 B-Buck every 10 minutes</li>
+                        <li>🏆 Complete achievements - Earn bonus B-Bucks</li>
+                        <li>👥 Invite friends - Earn 10 B-Bucks per referral</li>
+                    </ul>
                 </div>
             </div>
         </div>

@@ -15,6 +15,7 @@ const groupsScreen = document.getElementById('groups-screen');
 const settingsScreen = document.getElementById('settings-screen');
 const friendsModal = document.getElementById('friends-modal');
 const createGroupModal = document.getElementById('create-group-modal');
+const shopModal = document.getElementById('shop-modal');
 
 // Initialize
 function init() {
@@ -83,6 +84,10 @@ function setupEventListeners() {
     });
     document.getElementById('btn-groups-nav').addEventListener('click', () => showScreen('groups'));
     document.getElementById('btn-settings-nav').addEventListener('click', () => showScreen('settings'));
+    document.getElementById('btn-shop-nav').addEventListener('click', () => {
+        shopModal.classList.add('active');
+        loadBBucks();
+    });
     
     // Back buttons
     document.getElementById('btn-profile-back').addEventListener('click', () => showScreen('hub'));
@@ -106,6 +111,11 @@ function setupEventListeners() {
         friendsModal.classList.remove('active');
     });
     document.getElementById('btn-add-friend').addEventListener('click', handleAddFriend);
+    
+    // Shop modal
+    document.getElementById('btn-close-shop').addEventListener('click', () => {
+        shopModal.classList.remove('active');
+    });
     
     // Profile
     document.getElementById('btn-save-profile').addEventListener('click', handleSaveProfile);
@@ -155,6 +165,8 @@ async function handleLogin(e) {
             document.getElementById('chat-nav-username').textContent = currentUser.username;
             document.getElementById('groups-nav-username').textContent = currentUser.username;
             document.getElementById('settings-nav-username').textContent = currentUser.username;
+            loadBBucks();
+            startOnlineEarning();
             showScreen('hub');
             errorEl.textContent = '';
         } else {
@@ -191,6 +203,8 @@ async function handleRegister(e) {
             document.getElementById('chat-nav-username').textContent = currentUser.username;
             document.getElementById('groups-nav-username').textContent = currentUser.username;
             document.getElementById('settings-nav-username').textContent = currentUser.username;
+            loadBBucks();
+            startOnlineEarning();
             showScreen('hub');
             errorEl.textContent = '';
         } else {
@@ -206,9 +220,9 @@ async function verifyToken() {
         const response = await fetch('/api/verify', {
             headers: { 'Authorization': authToken }
         });
-        
+
         const data = await response.json();
-        
+
         if (data.valid) {
             currentUser = { username: data.username };
             document.getElementById('nav-username').textContent = currentUser.username;
@@ -217,6 +231,8 @@ async function verifyToken() {
             document.getElementById('chat-nav-username').textContent = currentUser.username;
             document.getElementById('groups-nav-username').textContent = currentUser.username;
             document.getElementById('settings-nav-username').textContent = currentUser.username;
+            loadBBucks();
+            startOnlineEarning();
             showScreen('hub');
         } else {
             localStorage.removeItem('boblox_token');
@@ -236,16 +252,18 @@ function handleLogout() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: authToken })
     });
-    
+
     localStorage.removeItem('boblox_token');
     authToken = null;
     currentUser = null;
-    
+
+    stopOnlineEarning();
+
     if (socket) {
         socket.disconnect();
         socket = null;
     }
-    
+
     showScreen('login');
 }
 
@@ -282,7 +300,10 @@ function launchGame(gameId, folderPath) {
     // Store token for the game to use
     sessionStorage.setItem('boblox_token', authToken);
     sessionStorage.setItem('boblox_game_id', gameId);
-    
+
+    // Earn b-bucks for playing
+    earnGameReward();
+
     // Navigate to the game
     window.location.href = `/${folderPath}/`;
 }
@@ -831,13 +852,91 @@ async function joinGroup(groupId) {
             method: 'POST',
             headers: { 'Authorization': authToken }
         });
-        
+
         if (response.ok) {
             loadGroups();
         }
     } catch (error) {
         console.error('Failed to join group:', error);
     }
+}
+
+// B-Bucks Functions
+async function loadBBucks() {
+    try {
+        const response = await fetch('/api/b-bucks', {
+            headers: { 'Authorization': authToken }
+        });
+        const data = await response.json();
+        document.getElementById('nav-b-bucks').textContent = data.b_bucks || 0;
+        document.getElementById('shop-b-bucks').textContent = data.b_bucks || 0;
+    } catch (error) {
+        console.error('Failed to load b-bucks:', error);
+    }
+}
+
+// Earn b-bucks for being online (1 b-buck every 10 minutes)
+let onlineEarningInterval = null;
+
+function startOnlineEarning() {
+    if (onlineEarningInterval) clearInterval(onlineEarningInterval);
+    
+    onlineEarningInterval = setInterval(async () => {
+        if (authToken) {
+            try {
+                const response = await fetch('/api/b-bucks/earn', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': authToken,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        amount: 1,
+                        reason: 'Online time reward'
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('nav-b-bucks').textContent = data.b_bucks;
+                    document.getElementById('shop-b-bucks').textContent = data.b_bucks;
+                }
+            } catch (error) {
+                console.error('Failed to earn online b-bucks:', error);
+            }
+        }
+    }, 10 * 60 * 1000); // 10 minutes
+}
+
+function stopOnlineEarning() {
+    if (onlineEarningInterval) {
+        clearInterval(onlineEarningInterval);
+        onlineEarningInterval = null;
+    }
+}
+
+// Earn b-bucks for playing games (called when launching a game)
+function earnGameReward() {
+    if (!authToken) return;
+    
+    const reward = Math.floor(Math.random() * 5) + 1; // 1-5 b-bucks
+    
+    fetch('/api/b-bucks/earn', {
+        method: 'POST',
+        headers: {
+            'Authorization': authToken,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            amount: reward,
+            reason: 'Game session reward'
+        })
+    }).then(response => response.json())
+      .then(data => {
+          document.getElementById('nav-b-bucks').textContent = data.b_bucks;
+          document.getElementById('shop-b-bucks').textContent = data.b_bucks;
+      })
+      .catch(error => console.error('Failed to earn game b-bucks:', error));
 }
 
 // Start the app

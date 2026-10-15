@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>B-Bucks Slots - Boblox</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tone.js for Synthesized Audio -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rajdhani:wght@500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .pixel-font {
+            font-family: 'Press Start 2P', cursive;
+        }
+        
+        /* Retro Glow Effects */
+        .neon-border-pink {
+            box-shadow: 0 0 15px rgba(236, 72, 153, 0.6), inset 0 0 15px rgba(236, 72, 153, 0.4);
+        }
+        .neon-border-cyan {
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.6), inset 0 0 15px rgba(6, 182, 212, 0.4);
+        }
+        .neon-text-pink {
+            text-shadow: 0 0 8px rgba(236, 72, 153, 0.8), 0 0 15px rgba(236, 72, 153, 0.5);
+        }
+        .neon-text-gold {
+            text-shadow: 0 0 8px rgba(234, 179, 8, 0.8), 0 0 15px rgba(234, 179, 8, 0.5);
+        }
+        .neon-text-cyan {
+            text-shadow: 0 0 8px rgba(6, 182, 212, 0.8), 0 0 15px rgba(6, 182, 212, 0.5);
+        }
+
+        /* CRT Scanline Effect */
+        .scanlines {
+            background: linear-gradient(
+                rgba(18, 16, 16, 0) 50%, 
+                rgba(0, 0, 0, 0.25) 50%
+            ), linear-gradient(
+                90deg,
+                rgba(255, 0, 0, 0.03),
+                rgba(0, 255, 0, 0.01),
+                rgba(0, 0, 255, 0.03)
+            );
+            background-size: 100% 4px, 6px 100%;
+            pointer-events: none;
+        }
+
+        /* 3D Reel Glass Frame Effect */
+        .reel-window {
+            perspective: 1000px;
+            background: linear-gradient(180deg, rgba(0,0,0,0.9) 0%, rgba(15,23,42,0.4) 15%, rgba(15,23,42,0.4) 85%, rgba(0,0,0,0.9) 100%);
+        }
+        
+        .reel-column {
+            transition: transform 0.1s ease-out;
+            will-change: transform;
+        }
+
+        /* Payline Overlay Animation */
+        @keyframes pulse-line {
+            0%, 100% { opacity: 0.3; transform: scaleY(1); }
+            50% { opacity: 0.9; transform: scaleY(1.3); }
+        }
+        .payline-active {
+            animation: pulse-line 0.8s infinite ease-in-out;
+        }
+
+        /* Custom Scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #06b6d4;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between selection:bg-pink-500 selection:text-white relative overflow-x-hidden">
+
+    <!-- CRT Overlay -->
+    <div class="fixed inset-0 scanlines z-50 pointer-events-none"></div>
+
+    <!-- Header / Nav -->
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-40 px-4 py-3">
+        <div class="max-w-6xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-pink-500 to-purple-600 flex items-center justify-center text-xl font-black shadow-lg shadow-pink-500/30 border border-pink-400/30">
+                    🎰
+                </div>
+                <div>
+                    <h1 class="pixel-font text-xs sm:text-sm text-transparent bg-clip-text bg-gradient-to-r from-pink-400 via-purple-300 to-cyan-400">B-BUCKS SLOTS</h1>
+                    <p class="text-xs text-slate-400 font-bold tracking-widest uppercase">Boblox Casino</p>
+                </div>
+            </div>
+
+            <!-- Stats & Controls -->
+            <div class="flex items-center gap-3">
+                <button id="soundToggleBtn" class="p-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-all border border-slate-700 hover:border-cyan-500/50" title="Toggle Audio">
+                    <i id="soundIcon" class="fas fa-volume-up text-cyan-400"></i>
+                </button>
+                <button id="paytableBtn" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 border border-slate-700 hover:border-pink-500/50 transition-all flex items-center gap-1.5">
+                    <i class="fas fa-table-cells text-pink-400"></i>
+                    <span class="hidden sm:inline">PAYTABLE</span>
+                </button>
+                <button id="statsBtn" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 border border-slate-700 hover:border-amber-500/50 transition-all flex items-center gap-1.5">
+                    <i class="fas fa-chart-bar text-amber-400"></i>
+                    <span class="hidden sm:inline">STATS</span>
+                </button>
+                <a href="/" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 border border-slate-700 hover:border-emerald-500/50 transition-all flex items-center gap-1.5">
+                    <i class="fas fa-home text-emerald-400"></i>
+                    <span class="hidden sm:inline">HUB</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Game Container -->
+    <main class="max-w-5xl mx-auto w-full px-4 py-6 flex-1 flex flex-col justify-center items-center">
+        
+        <!-- Slot Cabinet Machine Container -->
+        <div class="w-full bg-slate-900 border-2 border-slate-800 rounded-3xl p-4 sm:p-8 shadow-2xl relative overflow-hidden bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950">
+            <!-- Decorative Accent Lights -->
+            <div class="absolute top-0 left-1/4 w-1/2 h-1 bg-gradient-to-r from-transparent via-cyan-500 to-transparent shadow-[0_0_15px_#06b6d4]"></div>
+            <div class="absolute bottom-0 left-1/4 w-1/2 h-1 bg-gradient-to-r from-transparent via-pink-500 to-transparent shadow-[0_0_15px_#ec4899]"></div>
+
+            <!-- Top Banner Display -->
+            <div class="bg-slate-950 rounded-2xl p-4 mb-6 border border-slate-800 flex flex-wrap justify-between items-center gap-4 shadow-inner relative">
+                <!-- Balance Box -->
+                <div class="flex-1 min-w-[140px] bg-slate-900/90 border border-slate-800 rounded-xl p-3 flex flex-col items-center justify-center">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">B-BUCKS BALANCE</span>
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-pink-400 text-lg font-bold">💎</span>
+                        <span id="balanceDisplay" class="pixel-font text-xl sm:text-2xl text-pink-400 neon-text-pink">0</span>
+                    </div>
+                </div>
+
+                <!-- Game Mode Switcher (3 Reel / 5 Reel) -->
+                <div class="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
+                    <button id="mode3ReelBtn" class="px-3 py-2 rounded-lg bg-cyan-600 text-white transition-all">3 REELS</button>
+                    <button id="mode5ReelBtn" class="px-3 py-2 rounded-lg text-slate-400 hover:text-white transition-all">5 REELS</button>
+                </div>
+
+                <!-- Last Win Display -->
+                <div class="flex-1 min-w-[140px] bg-slate-900/90 border border-slate-800 rounded-xl p-3 flex flex-col items-center justify-center">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">WINNER PAID</span>
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-emerald-400 text-lg font-bold">💎</span>
+                        <span id="winDisplay" class="pixel-font text-xl sm:text-2xl text-emerald-400">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Message Banner / Status Bar -->
+            <div class="mb-6 bg-slate-950/80 border border-slate-800 rounded-xl py-2 px-4 text-center min-h-[42px] flex items-center justify-center">
+                <p id="statusMsg" class="pixel-font text-xs text-cyan-400 tracking-wide animate-pulse">
+                    PLACE YOUR BET AND SPIN THE REELS!
+                </p>
+            </div>
+
+            <!-- Reels Cabinet Box -->
+            <div class="relative bg-slate-950 rounded-2xl p-3 sm:p-5 border-4 border-slate-800 shadow-[inset_0_0_30px_rgba(0,0,0,0.8)] mb-6">
+                
+                <!-- Center Payline Highlight -->
+                <div class="absolute top-1/2 left-0 right-0 h-24 sm:h-28 -translate-y-1/2 border-y-2 border-pink-500/40 bg-pink-500/5 pointer-events-none z-20 flex items-center justify-between px-2">
+                    <div class="w-3 h-3 rounded-full bg-pink-500 shadow-[0_0_8px_#ec4899] payline-active"></div>
+                    <div class="w-3 h-3 rounded-full bg-pink-500 shadow-[0_0_8px_#ec4899] payline-active"></div>
+                </div>
+
+                <!-- Dynamic Reels Container -->
+                <div id="reelsContainer" class="reel-window grid grid-cols-3 gap-2 sm:gap-4 h-64 sm:h-72 overflow-hidden rounded-xl border border-slate-800 relative z-10">
+                    <!-- Reels will be injected here via JS -->
+                </div>
+            </div>
+
+            <!-- Control Deck Section -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center bg-slate-950/60 p-4 rounded-2xl border border-slate-800">
+                
+                <!-- Bet Control Box -->
+                <div class="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-xl p-2 sm:p-3">
+                    <span class="text-xs font-bold text-slate-400 ml-2">BET:</span>
+                    <div class="flex items-center gap-2">
+                        <button id="betDownBtn" class="w-10 h-10 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-95 text-pink-400 font-bold text-lg border border-slate-700 flex items-center justify-center transition-all">-</button>
+                        <span id="betDisplay" class="pixel-font text-lg text-pink-400 w-16 text-center">💎10</span>
+                        <button id="betUpBtn" class="w-10 h-10 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-95 text-pink-400 font-bold text-lg border border-slate-700 flex items-center justify-center transition-all">+</button>
+                    </div>
+                </div>
+
+                <!-- Quick Bet Presets -->
+                <div class="flex items-center justify-center gap-2">
+                    <button class="quick-bet-btn px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-slate-300 hover:border-cyan-500 transition-all" data-amount="10">💎10</button>
+                    <button class="quick-bet-btn px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-slate-300 hover:border-cyan-500 transition-all" data-amount="25">💎25</button>
+                    <button class="quick-bet-btn px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-slate-300 hover:border-cyan-500 transition-all" data-amount="50">💎50</button>
+                    <button id="maxBetBtn" class="px-3 py-2 rounded-lg bg-purple-900/50 hover:bg-purple-800/60 border border-purple-500/50 text-xs font-bold text-purple-300 hover:text-white transition-all">MAX</button>
+                </div>
+
+                <!-- Spin Action Button -->
+                <div class="flex items-center gap-2">
+                    <button id="spinBtn" class="flex-1 py-4 px-6 rounded-xl bg-gradient-to-r from-pink-600 via-purple-600 to-cyan-600 hover:from-pink-500 hover:via-purple-500 hover:to-cyan-500 text-white font-black text-lg tracking-wider shadow-lg shadow-pink-500/25 border border-pink-400/40 active:scale-95 transition-all flex items-center justify-center gap-2">
+                        <i class="fas fa-rotate text-xl"></i>
+                        <span>SPIN!</span>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="py-4 text-center text-xs text-slate-500 border-t border-slate-900">
+        <p>⚠️ This is a virtual game using B-Bucks. You can lose your B-Bucks!</p>
+    </footer>
+
+    <!-- Gambling Warning Modal -->
+    <div id="warningModal" class="fixed inset-0 bg-slate-950/95 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-900 border-2 border-red-500/50 rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+            <div class="text-center mb-6">
+                <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/20 flex items-center justify-center">
+                    <i class="fas fa-exclamation-triangle text-3xl text-red-500"></i>
+                </div>
+                <h2 class="pixel-font text-sm text-red-400 mb-2">⚠️ GAMBLING WARNING</h2>
+            </div>
+            
+            <div class="space-y-3 text-sm text-slate-300 mb-6">
+                <p><strong class="text-red-400">IMPORTANT:</strong> This game uses your real B-Bucks balance.</p>
+                <p>• You <strong class="text-red-400">CAN LOSE</strong> your B-Bucks by playing</p>
+                <p>• You <strong class="text-emerald-400">CAN WIN</strong> more B-Bucks if you get lucky</p>
+                <p>• This is a game of chance - outcomes are random</p>
+                <p>• Only play with B-Bucks you're willing to lose</p>
+                <p class="text-xs text-slate-500 mt-4">B-Bucks are a virtual currency with no real-world value.</p>
+            </div>
+
+            <div class="flex gap-3">
+                <button id="cancelWarningBtn" class="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold transition-all">
+                    Go Back to Hub
+                </button>
+                <button id="acceptWarningBtn" class="flex-1 py-3 rounded-xl bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-bold transition-all">
+                    I Understand, Let Me Play
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Paytable Modal -->
+    <div id="paytableModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border-2 border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <button id="closePaytableBtn" class="absolute top-4 right-4 text-slate-400 hover:text-white text-lg">
+                <i class="fas fa-times"></i>
+            </button>
+            
+            <h2 class="pixel-font text-sm text-pink-400 mb-4 flex items-center gap-2">
+                <i class="fas fa-trophy text-amber-400"></i> PAYTABLE & SYMBOLS
+            </h2>
+            
+            <div id="paytableList" class="space-y-3 text-sm">
+                <!-- Dynamically populated paytable items -->
+            </div>
+
+            <div class="mt-6 pt-4 border-t border-slate-800 text-xs text-slate-400 space-y-1">
+                <p>• <strong>3 Match (3-Reel):</strong> Pays full multiplier payout.</p>
+                <p>• <strong>5 Match (5-Reel):</strong> Pays 2x multiplier payout.</p>
+                <p>• <strong>Wild (💎):</strong> Substitutes for any symbol!</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Modal -->
+    <div id="statsModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border-2 border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
+            <button id="closeStatsBtn" class="absolute top-4 right-4 text-slate-400 hover:text-white text-lg">
+                <i class="fas fa-times"></i>
+            </button>
+            
+            <h2 class="pixel-font text-sm text-cyan-400 mb-6 flex items-center gap-2">
+                <i class="fas fa-chart-line text-cyan-400"></i> GAME STATISTICS
+            </h2>
+            
+            <div class="grid grid-cols-2 gap-4 text-center">
+                <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                    <p class="text-xs text-slate-400 font-bold uppercase">Total Spins</p>
+                    <p id="statTotalSpins" class="pixel-font text-xl text-white mt-1">0</p>
+                </div>
+                <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                    <p class="text-xs text-slate-400 font-bold uppercase">Total Wins</p>
+                    <p id="statTotalWins" class="pixel-font text-xl text-emerald-400 mt-1">0</p>
+                </div>
+                <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                    <p class="text-xs text-slate-400 font-bold uppercase">Win Rate</p>
+                    <p id="statWinRate" class="pixel-font text-xl text-amber-400 mt-1">0%</p>
+                </div>
+                <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                    <p class="text-xs text-slate-400 font-bold uppercase">Net B-Bucks</p>
+                    <p id="statNetBucks" class="pixel-font text-xl text-purple-400 mt-1">💎0</p>
+                </div>
+            </div>
+
+            <!-- Recent History -->
+            <div class="mt-6">
+                <h3 class="text-xs font-bold text-slate-400 uppercase mb-2">Recent Spin Results</h3>
+                <div id="recentHistoryList" class="bg-slate-950 rounded-xl p-3 border border-slate-800 max-h-36 overflow-y-auto space-y-1 text-xs">
+                    <p class="text-slate-500 text-center py-2">No spins played yet.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Logic -->
+    <script>
+        // --- GAME SYMBOLS & MULTIPLIERS (Adjusted for fairness) ---
+        const SYMBOLS = [
+            { id: 'wild', name: 'Diamond Wild', icon: '💎', multiplier: 20, twoMatchMult: 3, weight: 1, color: 'text-cyan-300' },
+            { id: 'seven', name: 'Lucky Seven', icon: '7️⃣', multiplier: 12, twoMatchMult: 2, weight: 3, color: 'text-red-400' },
+            { id: 'bar', name: 'Triple Bar', icon: '🎰', multiplier: 8, twoMatchMult: 1.5, weight: 5, color: 'text-purple-400' },
+            { id: 'bell', name: 'Golden Bell', icon: '🔔', multiplier: 5, twoMatchMult: 1.2, weight: 8, color: 'text-amber-400' },
+            { id: 'melon', name: 'Watermelon', icon: '🍉', multiplier: 4, twoMatchMult: 1.0, weight: 12, color: 'text-emerald-400' },
+            { id: 'orange', name: 'Orange', icon: '🍊', multiplier: 3, twoMatchMult: 0.8, weight: 15, color: 'text-orange-400' },
+            { id: 'cherry', name: 'Cherry', icon: '🍒', multiplier: 2, twoMatchMult: 0.6, weight: 20, color: 'text-pink-400' },
+            { id: 'lemon', name: 'Lemon', icon: '🍋', multiplier: 1.5, twoMatchMult: 0.5, weight: 25, color: 'text-yellow-400' }
+        ];
+
+        const TOTAL_WEIGHT = SYMBOLS.reduce((sum, s) => sum + s.weight, 0);
+
+        // --- GAME STATE ---
+        let state = {
+            balance: 0,
+            bet: 10,
+            reelsCount: 3,
+            isSpinning: false,
+            soundEnabled: true,
+            warningAccepted: false,
+            stats: {
+                totalSpins: 0,
+                totalWins: 0,
+                netBucks: 0,
+                history: []
+            }
+        };
+
+        // --- DOM ELEMENTS ---
+        const balanceDisplay = document.getElementById('balanceDisplay');
+        const winDisplay = document.getElementById('winDisplay');
+        const betDisplay = document.getElementById('betDisplay');
+        const statusMsg = document.getElementById('statusMsg');
+        const reelsContainer = document.getElementById('reelsContainer');
+        const spinBtn = document.getElementById('spinBtn');
+        const betUpBtn = document.getElementById('betUpBtn');
+        const betDownBtn = document.getElementById('betDownBtn');
+        const maxBetBtn = document.getElementById('maxBetBtn');
+        const mode3ReelBtn = document.getElementById('mode3ReelBtn');
+        const mode5ReelBtn = document.getElementById('mode5ReelBtn');
+        const soundToggleBtn = document.getElementById('soundToggleBtn');
+        const soundIcon = document.getElementById('soundIcon');
+        
+        // Warning Modal
+        const warningModal = document.getElementById('warningModal');
+        const cancelWarningBtn = document.getElementById('cancelWarningBtn');
+        const acceptWarningBtn = document.getElementById('acceptWarningBtn');
+        
+        // Modals & Stats DOM
+        const paytableModal = document.getElementById('paytableModal');
+        const paytableBtn = document.getElementById('paytableBtn');
+        const closePaytableBtn = document.getElementById('closePaytableBtn');
+        const paytableList = document.getElementById('paytableList');
+        
+        const statsModal = document.getElementById('statsModal');
+        const statsBtn = document.getElementById('statsBtn');
+        const closeStatsBtn = document.getElementById('closeStatsBtn');
+        const statTotalSpins = document.getElementById('statTotalSpins');
+        const statTotalWins = document.getElementById('statTotalWins');
+        const statWinRate = document.getElementById('statWinRate');
+        const statNetBucks = document.getElementById('statNetBucks');
+        const recentHistoryList = document.getElementById('recentHistoryList');
+
+        // --- AUTHENTICATION ---
+        let authToken = sessionStorage.getItem('boblox_token');
+
+        // --- SYNTHESIZED AUDIO (TONE.JS) ---
+        let synths = {
+            spin: null,
+            win: null,
+            jackpot: null,
+            click: null
+        };
+
+        function initAudio() {
+            try {
+                synths.click = new Tone.Synth({
+                    oscillator: { type: 'sine' },
+                    envelope: { attack: 0.005, decay: 0.05, sustain: 0, release: 0.05 }
+                }).toDestination();
+
+                synths.spin = new Tone.MembraneSynth({
+                    pitchDecay: 0.01,
+                    octaves: 2,
+                    envelope: { attack: 0.001, decay: 0.1, sustain: 0, release: 0.1 }
+                }).toDestination();
+
+                synths.win = new Tone.PolySynth(Tone.Synth).toDestination();
+                synths.jackpot = new Tone.PolySynth(Tone.Synth).toDestination();
+            } catch (e) {
+                console.log('Audio init postponed until user interaction.');
+            }
+        }
+
+        function playSound(type) {
+            if (!state.soundEnabled) return;
+            try {
+                if (Tone.context.state !== 'running') {
+                    Tone.start();
+                }
+                
+                if (type === 'click' && synths.click) {
+                    synths.click.triggerAttackRelease('C5', '16n');
+                } else if (type === 'spin' && synths.spin) {
+                    synths.spin.triggerAttackRelease('C2', '16n');
+                } else if (type === 'win' && synths.win) {
+                    synths.win.triggerAttackRelease(['C4', 'E4', 'G4', 'B4'], '8n');
+                } else if (type === 'jackpot' && synths.jackpot) {
+                    synths.jackpot.triggerAttackRelease(['C4', 'E4', 'G4', 'C5', 'E5'], '4n');
+                }
+            } catch (e) {
+                // Audio safety catch
+            }
+        }
+
+        // --- LOAD B-BUCKS BALANCE ---
+        async function loadBBucks() {
+            try {
+                const response = await fetch('/api/b-bucks', {
+                    headers: { 'Authorization': authToken }
+                });
+                const data = await response.json();
+                state.balance = data.b_bucks || 0;
+                updateUI();
+            } catch (error) {
+                console.error('Failed to load b-bucks:', error);
+                statusMsg.textContent = "ERROR LOADING BALANCE";
+                statusMsg.className = "pixel-font text-xs text-red-400 tracking-wide";
+            }
+        }
+
+        // --- SPEND B-BUCKS ---
+        async function spendBBucks(amount) {
+            try {
+                const response = await fetch('/api/b-bucks/spend', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': authToken,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        amount: amount,
+                        item: 'Slot machine bet'
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    state.balance = data.b_bucks;
+                    return true;
+                } else {
+                    const error = await response.json();
+                    statusMsg.textContent = error.error || "ERROR SPENDING B-BUCKS";
+                    statusMsg.className = "pixel-font text-xs text-red-400 tracking-wide";
+                    return false;
+                }
+            } catch (error) {
+                console.error('Failed to spend b-bucks:', error);
+                statusMsg.textContent = "ERROR SPENDING B-BUCKS";
+                statusMsg.className = "pixel-font text-xs text-red-400 tracking-wide";
+                return false;
+            }
+        }
+
+        // --- EARN B-BUCKS ---
+        async function earnBBucks(amount, reason) {
+            try {
+                const response = await fetch('/api/b-bucks/earn', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': authToken,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        amount: amount,
+                        reason: reason
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    state.balance = data.b_bucks;
+                    return true;
+                }
+                return false;
+            } catch (error) {
+                console.error('Failed to earn b-bucks:', error);
+                return false;
+            }
+        }
+
+        // --- INITIALIZATION ---
+        function initGame() {
+            if (!authToken) {
+                window.location.href = '/';
+                return;
+            }
+            
+            initAudio();
+            loadBBucks();
+            renderReels();
+            updateUI();
+            buildPaytable();
+            attachEventListeners();
+        }
+
+        // Render Initial Reels DOM Structure
+        function renderReels() {
+            reelsContainer.innerHTML = '';
+            reelsContainer.className = `reel-window grid grid-cols-${state.reelsCount} gap-2 sm:gap-4 h-64 sm:h-72 overflow-hidden rounded-xl border border-slate-800 relative z-10`;
+
+            for (let i = 0; i < state.reelsCount; i++) {
+                const reelCol = document.createElement('div');
+                reelCol.className = 'flex flex-col items-center justify-around h-full bg-slate-900/60 rounded-lg border border-slate-800/80 reel-column';
+                reelCol.id = `reel-${i}`;
+                
+                const randomSyms = [getRandomSymbol(), getRandomSymbol(), getRandomSymbol()];
+                reelCol.innerHTML = randomSyms.map((sym, idx) => `
+                    <div class="symbol-item flex flex-col items-center justify-center transition-all duration-300 ${idx === 1 ? 'scale-110' : 'opacity-40 filter blur-[0.5px]'}">
+                        <span class="text-4xl sm:text-5xl drop-shadow-md">${sym.icon}</span>
+                    </div>
+                `).join('');
+                
+                reelsContainer.appendChild(reelCol);
+            }
+        }
+
+        function getRandomSymbol() {
+            let rand = Math.random() * TOTAL_WEIGHT;
+            for (const sym of SYMBOLS) {
+                if (rand < sym.weight) {
+                    return sym;
+                }
+                rand -= sym.weight;
+            }
+            return SYMBOLS[SYMBOLS.length - 1];
+        }
+
+        function updateUI() {
+            balanceDisplay.textContent = state.balance.toLocaleString();
+            betDisplay.textContent = `💎${state.bet}`;
+
+            if (state.balance < state.bet) {
+                spinBtn.disabled = true;
+                spinBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                statusMsg.textContent = "INSUFFICIENT B-BUCKS!";
+                statusMsg.className = "pixel-font text-xs text-red-400 tracking-wide animate-pulse";
+            } else {
+                spinBtn.disabled = false;
+                spinBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+
+            if (state.reelsCount === 3) {
+                mode3ReelBtn.className = 'px-3 py-2 rounded-lg bg-cyan-600 text-white transition-all shadow-md';
+                mode5ReelBtn.className = 'px-3 py-2 rounded-lg text-slate-400 hover:text-white transition-all';
+            } else {
+                mode5ReelBtn.className = 'px-3 py-2 rounded-lg bg-cyan-600 text-white transition-all shadow-md';
+                mode3ReelBtn.className = 'px-3 py-2 rounded-lg text-slate-400 hover:text-white transition-all';
+            }
+        }
+
+        // --- SPIN LOGIC & ANIMATION ---
+        async function spin() {
+            if (state.isSpinning) return;
+            if (state.balance < state.bet) {
+                statusMsg.textContent = "INSUFFICIENT B-BUCKS!";
+                statusMsg.className = "pixel-font text-xs text-red-400 tracking-wide animate-pulse";
+                return;
+            }
+
+            // Deduct bet from backend
+            const success = await spendBBucks(state.bet);
+            if (!success) {
+                loadBBucks();
+                return;
+            }
+
+            state.isSpinning = true;
+            spinBtn.disabled = true;
+            spinBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            winDisplay.textContent = '0';
+            statusMsg.textContent = "SPINNING...";
+            statusMsg.className = "pixel-font text-xs text-yellow-400 tracking-wide animate-pulse";
+
+            updateUI();
+
+            const finalResults = [];
+            const spinDurations = [];
+
+            for (let i = 0; i < state.reelsCount; i++) {
+                finalResults.push(getRandomSymbol());
+                spinDurations.push(1000 + i * 400);
+            }
+
+            for (let i = 0; i < state.reelsCount; i++) {
+                const reelElement = document.getElementById(`reel-${i}`);
+                let spinInterval;
+                
+                spinInterval = setInterval(() => {
+                    const topSym = getRandomSymbol();
+                    const midSym = getRandomSymbol();
+                    const botSym = getRandomSymbol();
+
+                    reelElement.innerHTML = `
+                        <div class="symbol-item flex flex-col items-center justify-center opacity-30 filter blur-sm">
+                            <span class="text-4xl sm:text-5xl">${topSym.icon}</span>
+                        </div>
+                        <div class="symbol-item flex flex-col items-center justify-center opacity-50 filter blur-sm">
+                            <span class="text-4xl sm:text-5xl">${midSym.icon}</span>
+                        </div>
+                        <div class="symbol-item flex flex-col items-center justify-center opacity-30 filter blur-sm">
+                            <span class="text-4xl sm:text-5xl">${botSym.icon}</span>
+                        </div>
+                    `;
+                    playSound('spin');
+                }, 70);
+
+                setTimeout(() => {
+                    clearInterval(spinInterval);
+
+                    const finalMid = finalResults[i];
+                    const finalTop = getRandomSymbol();
+                    const finalBot = getRandomSymbol();
+
+                    reelElement.innerHTML = `
+                        <div class="symbol-item flex flex-col items-center justify-center opacity-40">
+                            <span class="text-4xl sm:text-5xl">${finalTop.icon}</span>
+                        </div>
+                        <div class="symbol-item flex flex-col items-center justify-center scale-110 transition-transform">
+                            <span class="text-4xl sm:text-5xl drop-shadow-lg">${finalMid.icon}</span>
+                        </div>
+                        <div class="symbol-item flex flex-col items-center justify-center opacity-40">
+                            <span class="text-4xl sm:text-5xl">${finalBot.icon}</span>
+                        </div>
+                    `;
+
+                    playSound('click');
+
+                    if (i === state.reelsCount - 1) {
+                        setTimeout(() => {
+                            evaluateSpin(finalResults);
+                        }, 200);
+                    }
+                }, spinDurations[i]);
+            }
+        }
+
+        // --- WIN EVALUATION & PAYOUT CALCULATIONS ---
+        async function evaluateSpin(results) {
+            state.isSpinning = false;
+            spinBtn.disabled = false;
+            spinBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+
+            state.stats.totalSpins++;
+
+            const symbolIds = results.map(r => r.id);
+            let isWin = false;
+            let winAmount = 0;
+            let winMultiplier = 0;
+            let winLabel = "";
+
+            const nonWilds = symbolIds.filter(id => id !== 'wild');
+            let mainSymbolId = nonWilds.length > 0 ? nonWilds[0] : 'wild';
+
+            const allMatch = symbolIds.every(id => id === mainSymbolId || id === 'wild');
+
+            if (allMatch) {
+                isWin = true;
+                const matchedSymbol = SYMBOLS.find(s => s.id === mainSymbolId) || SYMBOLS[0];
+                winMultiplier = matchedSymbol.multiplier;
+
+                if (state.reelsCount === 5) {
+                    winMultiplier = Math.round(winMultiplier * 2);
+                }
+
+                winAmount = Math.round(state.bet * winMultiplier);
+                winLabel = `JACKPOT MATCH! (${matchedSymbol.name})`;
+            } else {
+                const counts = {};
+                symbolIds.forEach(id => {
+                    counts[id] = (counts[id] || 0) + 1;
+                });
+
+                const wildCount = counts['wild'] || 0;
+                let bestPartialSymbol = null;
+                let maxCount = 0;
+
+                for (const sym of SYMBOLS) {
+                    const effectiveCount = (counts[sym.id] || 0) + (sym.id !== 'wild' ? wildCount : 0);
+                    if (effectiveCount >= 2 && effectiveCount > maxCount) {
+                        maxCount = effectiveCount;
+                        bestPartialSymbol = sym;
+                    }
+                }
+
+                if (bestPartialSymbol && bestPartialSymbol.twoMatchMult) {
+                    isWin = true;
+                    winMultiplier = bestPartialSymbol.twoMatchMult;
+                    winAmount = Math.round(state.bet * winMultiplier);
+                    winLabel = `2x MATCH! (${bestPartialSymbol.name})`;
+                }
+            }
+
+            if (isWin && winAmount > 0) {
+                const earnSuccess = await earnBBucks(winAmount, 'Slot machine win');
+                if (earnSuccess) {
+                    state.stats.totalWins++;
+                    state.stats.netBucks += (winAmount - state.bet);
+                    
+                    winDisplay.textContent = winAmount.toLocaleString();
+                    
+                    if (winMultiplier >= 5) {
+                        statusMsg.textContent = `🎉 BIG WIN! ${winLabel} - YOU WON 💎${winAmount.toLocaleString()}! 🎉`;
+                        statusMsg.className = "pixel-font text-xs text-amber-300 tracking-wide neon-text-gold animate-bounce";
+                        playSound('jackpot');
+                        triggerConfetti();
+                    } else {
+                        statusMsg.textContent = `✨ NICE HIT! ${winLabel} - PAID 💎${winAmount.toLocaleString()}! ✨`;
+                        statusMsg.className = "pixel-font text-xs text-emerald-400 tracking-wide animate-pulse";
+                        playSound('win');
+                    }
+
+                    state.stats.history.unshift({
+                        type: 'WIN',
+                        bet: state.bet,
+                        amount: winAmount,
+                        symbols: results.map(r => r.icon).join(' ')
+                    });
+                }
+            } else {
+                state.stats.netBucks -= state.bet;
+                statusMsg.textContent = "NO MATCH! TRY AGAIN!";
+                statusMsg.className = "pixel-font text-xs text-slate-400 tracking-wide";
+
+                state.stats.history.unshift({
+                    type: 'LOSS',
+                    bet: state.bet,
+                    amount: 0,
+                    symbols: results.map(r => r.icon).join(' ')
+                });
+            }
+
+            if (state.stats.history.length > 20) {
+                state.stats.history.pop();
+            }
+
+            updateUI();
+            updateStatsModalUI();
+        }
+
+        function triggerConfetti() {
+            if (typeof confetti === 'function') {
+                confetti({
+                    particleCount: 100,
+                    spread: 70,
+                    origin: { y: 0.6 }
+                });
+            }
+        }
+
+        function buildPaytable() {
+            paytableList.innerHTML = SYMBOLS.map(sym => `
+                <div class="flex items-center justify-between bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                    <div class="flex items-center gap-3">
+                        <span class="text-2xl">${sym.icon}</span>
+                        <div>
+                            <span class="font-bold text-slate-200 block">${sym.name}</span>
+                            <span class="text-[10px] text-slate-400">Spawn Chance: ${Math.round((sym.weight / TOTAL_WEIGHT) * 100)}%</span>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <span class="pixel-font text-pink-400 text-xs block">${sym.multiplier}x (Full Match)</span>
+                        <span class="text-[11px] text-emerald-400 font-bold block">${sym.twoMatchMult}x (2 Match)</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateStatsModalUI() {
+            statTotalSpins.textContent = state.stats.totalSpins;
+            statTotalWins.textContent = state.stats.totalWins;
+            
+            const winRate = state.stats.totalSpins > 0 
+                ? ((state.stats.totalWins / state.stats.totalSpins) * 100).toFixed(1)
+                : 0;
+            statWinRate.textContent = `${winRate}%`;
+            statNetBucks.textContent = `💎${state.stats.netBucks.toLocaleString()}`;
+
+            if (state.stats.history.length === 0) {
+                recentHistoryList.innerHTML = '<p class="text-slate-500 text-center py-2">No spins played yet.</p>';
+            } else {
+                recentHistoryList.innerHTML = state.stats.history.map(item => `
+                    <div class="flex justify-between items-center p-2 rounded bg-slate-900 border border-slate-800">
+                        <span class="text-base">${item.symbols}</span>
+                        <span class="${item.type === 'WIN' ? 'text-emerald-400 font-bold' : 'text-slate-500'}">
+                            ${item.type === 'WIN' ? `+💎${item.amount.toLocaleString()}` : `-💎${item.bet}`}
+                        </span>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function attachEventListeners() {
+            spinBtn.addEventListener('click', () => {
+                playSound('click');
+                spin();
+            });
+
+            betUpBtn.addEventListener('click', () => {
+                if (state.isSpinning) return;
+                playSound('click');
+                state.bet = Math.min(state.bet + 10, 200);
+                updateUI();
+            });
+
+            betDownBtn.addEventListener('click', () => {
+                if (state.isSpinning) return;
+                playSound('click');
+                state.bet = Math.max(state.bet - 10, 5);
+                updateUI();
+            });
+
+            maxBetBtn.addEventListener('click', () => {
+                if (state.isSpinning) return;
+                playSound('click');
+                state.bet = 100;
+                updateUI();
+            });
+
+            document.querySelectorAll('.quick-bet-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    if (state.isSpinning) return;
+                    playSound('click');
+                    state.bet = parseInt(e.target.dataset.amount);
+                    updateUI();
+                });
+            });
+
+            mode3ReelBtn.addEventListener('click', () => {
+                if (state.isSpinning || state.reelsCount === 3) return;
+                playSound('click');
+                state.reelsCount = 3;
+                renderReels();
+                updateUI();
+            });
+
+            mode5ReelBtn.addEventListener('click', () => {
+                if (state.isSpinning || state.reelsCount === 5) return;
+                playSound('click');
+                state.reelsCount = 5;
+                renderReels();
+                updateUI();
+            });
+
+            soundToggleBtn.addEventListener('click', () => {
+                state.soundEnabled = !state.soundEnabled;
+                soundIcon.className = state.soundEnabled ? 'fas fa-volume-up text-cyan-400' : 'fas fa-volume-mute text-slate-500';
+            });
+
+            paytableBtn.addEventListener('click', () => {
+                playSound('click');
+                paytableModal.classList.remove('hidden');
+            });
+            closePaytableBtn.addEventListener('click', () => {
+                playSound('click');
+                paytableModal.classList.add('hidden');
+            });
+
+            statsBtn.addEventListener('click', () => {
+                playSound('click');
+                updateStatsModalUI();
+                statsModal.classList.remove('hidden');
+            });
+            closeStatsBtn.addEventListener('click', () => {
+                playSound('click');
+                statsModal.classList.add('hidden');
+            });
+
+            // Warning Modal
+            cancelWarningBtn.addEventListener('click', () => {
+                window.location.href = '/';
+            });
+
+            acceptWarningBtn.addEventListener('click', () => {
+                playSound('click');
+                state.warningAccepted = true;
+                warningModal.classList.add('hidden');
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.code === 'Space' && !state.isSpinning && state.warningAccepted) {
+                    e.preventDefault();
+                    spin();
+                }
+            });
+        }
+
+        window.onload = initGame;
+    </script>
+</body>
+</html>

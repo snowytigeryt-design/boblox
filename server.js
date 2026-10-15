@@ -48,7 +48,8 @@ db.serialize(() => {
             privacy_allow_friend_requests BOOLEAN DEFAULT 1,
             privacy_allow_profile_view BOOLEAN DEFAULT 1,
             privacy_allow_game_invites BOOLEAN DEFAULT 1,
-            is_creator BOOLEAN DEFAULT 0
+            is_creator BOOLEAN DEFAULT 0,
+            b_bucks INTEGER DEFAULT 0
         )
     `);
 
@@ -429,7 +430,8 @@ app.get('/api/user', (req, res) => {
             email: user.email,
             avatar_url: user.avatar_url,
             bio: user.bio,
-            created_at: user.created_at
+            created_at: user.created_at,
+            b_bucks: user.b_bucks || 0
         });
     });
 });
@@ -1601,6 +1603,98 @@ app.get('/api/games/:id/versions', (req, res) => {
     });
 });
 
+// --- B-BUCKS API ---
+
+// Get b-bucks balance
+app.get('/api/b-bucks', (req, res) => {
+    authenticate(req, res, (user) => {
+        if (!user) return;
+
+        res.json({ b_bucks: user.b_bucks || 0 });
+    });
+});
+
+// Earn b-bucks (for playing games, being online, etc.)
+app.post('/api/b-bucks/earn', (req, res) => {
+    authenticate(req, res, (user) => {
+        if (!user) return;
+
+        const { amount, reason } = req.body;
+
+        if (!amount || amount <= 0) {
+            return res.status(400).json({ error: 'Invalid amount' });
+        }
+
+        if (amount > 50) {
+            return res.status(400).json({ error: 'Cannot earn more than 50 b-bucks at once' });
+        }
+
+        db.run('UPDATE users SET b_bucks = b_bucks + ? WHERE id = ?', [amount, user.id], (err) => {
+            if (err) {
+                console.error('Earn b-bucks error:', err);
+                return res.status(500).json({ error: 'Server error' });
+            }
+
+            db.get('SELECT b_bucks FROM users WHERE id = ?', [user.id], (err, updatedUser) => {
+                if (err) {
+                    return res.status(500).json({ error: 'Server error' });
+                }
+
+                res.json({
+                    success: true,
+                    b_bucks: updatedUser.b_bucks,
+                    earned: amount,
+                    reason: reason || 'Activity reward'
+                });
+            });
+        });
+    });
+});
+
+// Spend b-bucks (for purchasing items)
+app.post('/api/b-bucks/spend', (req, res) => {
+    authenticate(req, res, (user) => {
+        if (!user) return;
+
+        const { amount, item } = req.body;
+
+        if (!amount || amount <= 0) {
+            return res.status(400).json({ error: 'Invalid amount' });
+        }
+
+        db.get('SELECT b_bucks FROM users WHERE id = ?', [user.id], (err, userData) => {
+            if (err) {
+                console.error('Spend b-bucks error:', err);
+                return res.status(500).json({ error: 'Server error' });
+            }
+
+            if ((userData.b_bucks || 0) < amount) {
+                return res.status(400).json({ error: 'Insufficient b-bucks' });
+            }
+
+            db.run('UPDATE users SET b_bucks = b_bucks - ? WHERE id = ?', [amount, user.id], (err) => {
+                if (err) {
+                    console.error('Spend b-bucks error:', err);
+                    return res.status(500).json({ error: 'Server error' });
+                }
+
+                db.get('SELECT b_bucks FROM users WHERE id = ?', [user.id], (err, updatedUser) => {
+                    if (err) {
+                        return res.status(500).json({ error: 'Server error' });
+                    }
+
+                    res.json({
+                        success: true,
+                        b_bucks: updatedUser.b_bucks,
+                        spent: amount,
+                        item: item || 'Unknown item'
+                    });
+                });
+            });
+        });
+    });
+});
+
 // --- REAL-TIME (SOCKET.IO) ---
 
 io.use((socket, next) => {
@@ -1674,6 +1768,30 @@ httpServer.listen(PORT, () => {
                     console.error('Error registering game:', err);
                 } else {
                     console.log('Registered Arena Clash game');
+                }
+            });
+        }
+    });
+
+    // Register B-Bucks Slots if not already registered
+    db.get('SELECT * FROM games WHERE id = ?', ['slot-machine'], (err, existingGame) => {
+        if (!existingGame) {
+            db.run(`
+                INSERT INTO games (id, name, description, thumbnail_url, folder_path, category, is_active)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            `, [
+                'slot-machine',
+                'B-Bucks Slots',
+                'Test your luck! Spin the reels and win B-Bucks. ⚠️ You can lose your B-Bucks!',
+                null,
+                'games/slot-machine',
+                'casual',
+                1
+            ], (err) => {
+                if (err) {
+                    console.error('Error registering game:', err);
+                } else {
+                    console.log('Registered B-Bucks Slots game');
                 }
             });
         }
