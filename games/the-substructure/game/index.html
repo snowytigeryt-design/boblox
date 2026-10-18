@@ -1,0 +1,45 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>The Substructure</title>
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script>
+// Boblox account system integration
+const token = sessionStorage.getItem('boblox_token');
+if (!token) {
+  document.body.innerHTML = '<div style="padding:60px;text-align:center;font-family:sans-serif;color:#fff;background:#05060a;height:100vh;">' +
+    '<h2>Please launch The Substructure from the Boblox hub.</h2>' +
+    '<a href="/" style="color:#5a9bd6;">Return to hub</a></div>';
+  throw new Error('No session token found');
+}
+</script>
+</head>
+<body>
+<div id="vig"></div><div id="glitch"></div><div id="slats"></div><div id="flash"></div><div id="grain"></div>
+<div id="hud"><div id="roster"></div><div id="spec"></div><div id="st"><i></i></div><div id="hint"></div></div>
+
+<div id="lobby">
+  <div class="panel">
+    <h1>THE SUBSTRUCTURE</h1>
+    <p class="tag">Four people go in. Count them on the way out.</p>
+    <label class="row">Your name <input id="lname" maxlength="12" placeholder="Name" autocomplete="off"></label>
+    <div id="lhome">
+      <div class="row"><button id="lcreate" disabled>Create party</button></div>
+      <div class="row"><input id="lcodein" maxlength="4" placeholder="CODE" autocomplete="off" spellcheck="false"><button id="ljoin" disabled>Join party</button></div>
+      <div class="row"><button id="lsolo" class="ghost">Play solo</button> <button id="lretry" class="ghost" style="display:none">Retry server</button></div>
+    </div>
+    <div id="lparty" style="display:none">
+      <p class="k">Party code <small>(click to copy invite link)</small></p>
+      <div id="lcode" title="Copy invite link">----</div><button id="lcopy" class="ghost">Copy invite link</button>
+      <ul id="lmembers"></ul>
+      <div class="row"><button id="lstart">Enter the maze</button><span id="lwait" class="k">Waiting for the host to start…</span></div>
+      <div class="row"><button id="lleave" class="ghost">Leave party</button></div>
+    </div>
+    <p id="lmsg"></p>
+    <p id="lstats" class="k"></p>
+    <p id="lid" class="k tiny"></p>
+  </div>
+</div>
+
+<div id="ov" style="display:none"><h1>THE SUBSTRUCTURE</h1><p id="sub">Loading monsters...</p><p class="k">WASD move &middot; Shift sprint &middot; E hide / leave locker &middot; P change quality<br>Find the green light. Lockers hide you. Almost.<br><span id="ovmp"></span></p></div>
+
+<script type="module" src="js/net.js"></script>
+<script type="module" src="js/main.js"></script></body></html>

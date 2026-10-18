@@ -1,0 +1,13 @@
+{
+  "name": "the-substructure",
+  "version": "2.0.0",
+  "description": "The Substructure - co-op horror maze (three.js + Node + NeDB)",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "license": "MIT",
+  "dependencies": {
+    "@seald-io/nedb": "^4.0.4",
+    "express": "^4.19.2",
+    "ws": "^8.18.0"
+  }
+}

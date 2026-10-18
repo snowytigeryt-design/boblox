@@ -1796,4 +1796,52 @@ httpServer.listen(PORT, () => {
             });
         }
     });
+
+    // Register Halofall if not already registered
+    db.get('SELECT * FROM games WHERE id = ?', ['halofall'], (err, existingGame) => {
+        if (!existingGame) {
+            db.run(`
+                INSERT INTO games (id, name, description, thumbnail_url, folder_path, category, is_active)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            `, [
+                'halofall',
+                'Halofall',
+                'Battle royale with building, looting, and combat. Drop in, gear up, and be the last one standing!',
+                null,
+                'games/Halofall.html',
+                'action',
+                1
+            ], (err) => {
+                if (err) {
+                    console.error('Error registering game:', err);
+                } else {
+                    console.log('Registered Halofall game');
+                }
+            });
+        }
+    });
+
+    // Register The Substructure if not already registered
+    db.get('SELECT * FROM games WHERE id = ?', ['the-substructure'], (err, existingGame) => {
+        if (!existingGame) {
+            db.run(`
+                INSERT INTO games (id, name, description, thumbnail_url, folder_path, category, is_active)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            `, [
+                'the-substructure',
+                'The Substructure',
+                'Co-op horror maze. Navigate through darkness with friends while avoiding terrifying monsters.',
+                null,
+                'games/the-substructure/game',
+                'adventure',
+                1
+            ], (err) => {
+                if (err) {
+                    console.error('Error registering game:', err);
+                } else {
+                    console.log('Registered The Substructure game');
+                }
+            });
+        }
+    });
 });
