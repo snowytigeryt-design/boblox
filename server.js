@@ -1844,4 +1844,28 @@ httpServer.listen(PORT, () => {
             });
         }
     });
+
+    // Register Spirefall if not already registered
+    db.get('SELECT * FROM games WHERE id = ?', ['spirefall'], (err, existingGame) => {
+        if (!existingGame) {
+            db.run(`
+                INSERT INTO games (id, name, description, thumbnail_url, folder_path, category, is_active)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            `, [
+                'spirefall',
+                'Spirefall',
+                'Card-based tower defense battle game. Build your deck and destroy the enemy spire!',
+                null,
+                'games/Spirefall.html',
+                'strategy',
+                1
+            ], (err) => {
+                if (err) {
+                    console.error('Error registering game:', err);
+                } else {
+                    console.log('Registered Spirefall game');
+                }
+            });
+        }
+    });
 });
